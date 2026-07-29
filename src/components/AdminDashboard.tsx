@@ -46,7 +46,8 @@ import {
   Activity,
   Cloud,
   ShieldCheck,
-  Loader2
+  Loader2,
+  ExternalLink
 } from 'lucide-react';
 import { uploadFile } from '../services/api';
 import { 
@@ -129,6 +130,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   pages,
   headerConfig,
   footerConfig,
+  initialSubTab,
+  onNavigateSubTab,
   onApproveProperty,
   onRejectProperty,
   onRequestChanges,
@@ -146,9 +149,48 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onSaveHeaderConfig,
   onSaveFooterConfig
 }) => {
+  const getTabFromSubTab = (subTab?: string): 'analytics' | 'properties' | 'audit' | 'files' | 'pages' | 'header_footer' | 'db_diagnostics' => {
+    if (subTab === 'properties') return 'properties';
+    if (subTab === 'client-audit-check' || subTab === 'audit') return 'audit';
+    if (subTab === 'file-manager' || subTab === 'files') return 'files';
+    if (subTab === 'pages') return 'pages';
+    if (subTab === 'header-and-footer' || subTab === 'header_footer') return 'header_footer';
+    if (subTab === 'db-diagnostics' || subTab === 'db_diagnostics') return 'db_diagnostics';
+    return 'analytics';
+  };
+
   const [activeTab, setActiveTab] = useState<
     'analytics' | 'properties' | 'audit' | 'files' | 'pages' | 'header_footer' | 'db_diagnostics'
-  >('analytics');
+  >(() => getTabFromSubTab(initialSubTab));
+
+  React.useEffect(() => {
+    if (initialSubTab) {
+      setActiveTab(getTabFromSubTab(initialSubTab));
+    }
+  }, [initialSubTab]);
+
+  const handleSelectTab = (tab: 'analytics' | 'properties' | 'audit' | 'files' | 'pages' | 'header_footer' | 'db_diagnostics') => {
+    setActiveTab(tab);
+    setIsBuildingPage(false);
+    if (tab === 'db_diagnostics') runDiagnostics();
+
+    const urlMap: Record<string, string> = {
+      analytics: '/admin-dashboard/analytics',
+      properties: '/admin-dashboard/properties',
+      audit: '/admin-dashboard/client-audit-check',
+      files: '/admin-dashboard/file-manager',
+      pages: '/admin-dashboard/pages',
+      header_footer: '/admin-dashboard/header-and-footer',
+      db_diagnostics: '/admin-dashboard/db-diagnostics'
+    };
+
+    const targetPath = urlMap[tab] || '/admin-dashboard/analytics';
+    if (onNavigateSubTab) {
+      onNavigateSubTab(targetPath);
+    } else {
+      window.history.pushState({}, '', targetPath);
+    }
+  };
 
   // Database & Cloudinary Diagnostics State
   const [neonStatus, setNeonStatus] = useState<{
@@ -323,7 +365,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           {/* Navigation Items */}
           <nav className="space-y-1">
             <button
-              onClick={() => { setActiveTab('analytics'); setIsBuildingPage(false); }}
+              onClick={() => handleSelectTab('analytics')}
               className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'analytics'
                   ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
@@ -332,13 +374,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             >
               <div className="flex items-center space-x-2.5">
                 <BarChart3 className="w-4 h-4" />
-                <span>1. Analytics</span>
+                <span>Analytics</span>
               </div>
               <ChevronRight className="w-3.5 h-3.5 opacity-60" />
             </button>
 
             <button
-              onClick={() => { setActiveTab('properties'); setIsBuildingPage(false); }}
+              onClick={() => handleSelectTab('properties')}
               className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'properties'
                   ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
@@ -347,7 +389,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             >
               <div className="flex items-center space-x-2.5">
                 <Building2 className="w-4 h-4" />
-                <span>2. Properties</span>
+                <span>Properties</span>
               </div>
               <span className="bg-slate-800 text-slate-300 text-[10px] px-2 py-0.5 rounded-full font-bold">
                 {properties.length}
@@ -355,7 +397,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </button>
 
             <button
-              onClick={() => { setActiveTab('audit'); setIsBuildingPage(false); }}
+              onClick={() => handleSelectTab('audit')}
               className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'audit'
                   ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
@@ -364,7 +406,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             >
               <div className="flex items-center space-x-2.5">
                 <CheckSquare className="w-4 h-4 text-amber-400" />
-                <span>3. Client Audit Check</span>
+                <span>Client Audit Check</span>
               </div>
               {auditProperties.length > 0 && (
                 <span className="bg-amber-500 text-slate-950 text-[10px] px-2 py-0.5 rounded-full font-black animate-pulse">
@@ -374,7 +416,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </button>
 
             <button
-              onClick={() => { setActiveTab('files'); setIsBuildingPage(false); }}
+              onClick={() => handleSelectTab('files')}
               className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'files'
                   ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
@@ -383,7 +425,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             >
               <div className="flex items-center space-x-2.5">
                 <FolderOpen className="w-4 h-4 text-cyan-400" />
-                <span>4. File Manager (Cloudinary)</span>
+                <span>File Manager</span>
               </div>
               <span className="bg-slate-800 text-slate-300 text-[10px] px-2 py-0.5 rounded-full font-bold">
                 {files.length}
@@ -391,7 +433,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </button>
 
             <button
-              onClick={() => { setActiveTab('pages'); setIsBuildingPage(false); }}
+              onClick={() => handleSelectTab('pages')}
               className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'pages'
                   ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
@@ -400,7 +442,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             >
               <div className="flex items-center space-x-2.5">
                 <FileText className="w-4 h-4 text-emerald-400" />
-                <span>5. Pages & Page Builder</span>
+                <span>Pages</span>
               </div>
               <span className="bg-slate-800 text-slate-300 text-[10px] px-2 py-0.5 rounded-full font-bold">
                 {pages.length}
@@ -408,7 +450,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </button>
 
             <button
-              onClick={() => { setActiveTab('header_footer'); setIsBuildingPage(false); }}
+              onClick={() => handleSelectTab('header_footer')}
               className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'header_footer'
                   ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
@@ -417,13 +459,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             >
               <div className="flex items-center space-x-2.5">
                 <Sliders className="w-4 h-4 text-purple-400" />
-                <span>6. Header & Footer</span>
+                <span>Header & Footer</span>
               </div>
               <ChevronRight className="w-3.5 h-3.5 opacity-60" />
             </button>
 
             <button
-              onClick={() => { setActiveTab('db_diagnostics'); setIsBuildingPage(false); runDiagnostics(); }}
+              onClick={() => handleSelectTab('db_diagnostics')}
               className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'db_diagnostics'
                   ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
@@ -432,15 +474,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             >
               <div className="flex items-center space-x-2.5">
                 <Database className="w-4 h-4 text-emerald-400" />
-                <span>7. DB Diagnostics</span>
+                <span>DB Diagnostics</span>
               </div>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center ${
-                neonStatus.connected ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-slate-800 text-slate-300'
-              }`}>
-                <span className={`w-1.5 h-1.5 rounded-full mr-1 ${neonStatus.connected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
-                <span>Neon & Cld</span>
-              </span>
+              <ChevronRight className="w-3.5 h-3.5 opacity-60" />
             </button>
+
+            <a
+              href="/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold text-slate-400 hover:bg-slate-900 hover:text-white transition-all cursor-pointer border border-slate-800/60 mt-2"
+            >
+              <div className="flex items-center space-x-2.5">
+                <Globe className="w-4 h-4 text-sky-400" />
+                <span>View Website</span>
+              </div>
+              <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
+            </a>
           </nav>
         </div>
 

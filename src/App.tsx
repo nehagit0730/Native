@@ -78,7 +78,14 @@ export default function App() {
   });
 
   // Authentication State
-  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
+    const stored = localStorage.getItem('isAdminAuthenticated');
+    return stored === null ? true : stored === 'true';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('isAdminAuthenticated', String(isAdminAuthenticated));
+  }, [isAdminAuthenticated]);
   const [authenticatedRoles, setAuthenticatedRoles] = useState<Record<Role, boolean>>({
     buyer: true,
     owner: true,
@@ -403,6 +410,7 @@ export default function App() {
               headerConfig={headerConfig}
               footerConfig={footerConfig}
               initialSubTab={adminSubTab}
+              onNavigateSubTab={(path) => navigate(path)}
               onApproveProperty={handleApproveProperty}
               onRejectProperty={handleRejectProperty}
               onRequestChanges={handleRequestChanges}
