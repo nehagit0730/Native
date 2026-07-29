@@ -180,8 +180,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     try {
       const resNeon = await fetch('/api/neon/status');
-      neonResData = await resNeon.json();
-      setNeonStatus({ loading: false, ...neonResData });
+      const contentType = resNeon.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        const text = await resNeon.text();
+        neonResData = {
+          connected: false,
+          error: `Server returned non-JSON response (${resNeon.status} ${resNeon.statusText}). On static Vercel hosts, configure Vercel Serverless Functions or rewrites.`
+        };
+      } else {
+        neonResData = await resNeon.json();
+      }
+      setNeonStatus({ loading: false, connected: neonResData.connected ?? false, ...neonResData });
     } catch (err: any) {
       neonResData = { connected: false, error: err.message };
       setNeonStatus({ loading: false, connected: false, error: err.message });
@@ -189,8 +198,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     try {
       const resCld = await fetch('/api/cloudinary/status');
-      cldResData = await resCld.json();
-      setCloudinaryStatus({ loading: false, ...cldResData });
+      const contentType = resCld.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        const text = await resCld.text();
+        cldResData = {
+          configured: false,
+          error: `Server returned non-JSON response (${resCld.status} ${resCld.statusText}). On static Vercel hosts, configure Vercel Serverless Functions or rewrites.`
+        };
+      } else {
+        cldResData = await resCld.json();
+      }
+      setCloudinaryStatus({ loading: false, configured: cldResData.configured ?? false, ...cldResData });
     } catch (err: any) {
       cldResData = { configured: false, error: err.message };
       setCloudinaryStatus({ loading: false, configured: false, error: err.message });
