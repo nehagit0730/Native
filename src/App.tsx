@@ -42,6 +42,7 @@ import { AISearchModal } from './components/AISearchModal';
 import { EMICalculator } from './components/EMICalculator';
 import { CompareDrawer } from './components/CompareDrawer';
 import { PostPropertyWizard } from './components/PostPropertyWizard';
+import { PostPropertyPage } from './components/PostPropertyPage';
 import { MessagingDrawer } from './components/MessagingDrawer';
 
 export default function App() {
@@ -301,6 +302,7 @@ export default function App() {
   const comparedPropertyList = properties.filter((p) => comparedIds.includes(p.id));
 
   // Determine current active view based on URL path
+  const isPostPropertyRoute = currentPath === '/post-property';
   const isAdminRoute = currentPath.startsWith('/admin-dashboard');
   const isBuilderRoute = currentPath === '/builder-dashboard';
   const isBrokerRoute = currentPath === '/broker-dashboard';
@@ -366,7 +368,7 @@ export default function App() {
         onOpenCompare={() => {
           if (comparedIds.length === 0) alert('Add properties to compare first using the scale icon on cards.');
         }}
-        onOpenPostProperty={() => setShowPostProperty(true)}
+        onOpenPostProperty={() => navigate('/post-property')}
         onOpenAISearch={() => setShowAISearch(true)}
         onOpenEMICalculator={() => setShowEMI(true)}
         onOpenDashboard={() => navigate(`/${currentRole === 'admin' ? 'admin' : currentRole}-dashboard`)}
@@ -382,6 +384,18 @@ export default function App() {
 
       {/* Main Content Router */}
       <main className="flex-1">
+        {/* ROUTE 0: DEDICATED POST PROPERTY PAGE (/post-property) */}
+        {isPostPropertyRoute && (
+          <PostPropertyPage
+            files={files}
+            onListingCreated={(newProp) => {
+              setProperties([newProp, ...properties]);
+              setSelectedProperty(newProp);
+            }}
+            onNavigateBack={() => navigate('/admin-dashboard/properties')}
+          />
+        )}
+
         {/* ROUTE 1: ADMIN DASHBOARD */}
         {isAdminRoute && (
           !isAdminAuthenticated ? (
@@ -417,7 +431,7 @@ export default function App() {
               onDeleteProperty={handleDeleteProperty}
               onDuplicateProperty={handleDuplicateProperty}
               onSaveProperty={handleSaveProperty}
-              onOpenAddProperty={() => setShowPostProperty(true)}
+              onOpenAddProperty={() => navigate('/post-property')}
               onPreviewProperty={(p) => setSelectedProperty(p)}
               onUploadFile={handleUploadFile}
               onDeleteFile={handleDeleteFile}
@@ -446,7 +460,7 @@ export default function App() {
             properties={properties}
             savedProperties={savedPropertyList}
             onSelectProperty={(p) => setSelectedProperty(p)}
-            onOpenPostProperty={() => setShowPostProperty(true)}
+            onOpenPostProperty={() => navigate('/post-property')}
             onUpdateProperties={setProperties}
           />
         )}
@@ -513,7 +527,7 @@ export default function App() {
         )}
 
         {/* ROUTE 7: DEFAULT HOME PAGE (/) */}
-        {!isAdminRoute && !isBuilderRoute && !isBrokerRoute && !isOwnerRoute && !isBuyerRoute && !isPagesRoute && !isPropertyRoute && !isProjectsRoute && !isSearchRoute && (
+        {!isPostPropertyRoute && !isAdminRoute && !isBuilderRoute && !isBrokerRoute && !isOwnerRoute && !isBuyerRoute && !isPagesRoute && !isPropertyRoute && !isProjectsRoute && !isSearchRoute && (
           <div className="space-y-16 pb-12">
             {/* Search Hero */}
             <Hero
@@ -524,7 +538,7 @@ export default function App() {
               }}
               onSearchSubmit={handleHeroSearch}
               onOpenAISearch={() => setShowAISearch(true)}
-              onOpenPostProperty={() => setShowPostProperty(true)}
+              onOpenPostProperty={() => navigate('/post-property')}
             />
 
             {/* Featured Properties Carousel/Grid */}
@@ -720,17 +734,6 @@ export default function App() {
 
       {/* EMI Calculator Modal */}
       <EMICalculator isOpen={showEMI} onClose={() => setShowEMI(false)} />
-
-      {/* Post Property Wizard Modal */}
-      <PostPropertyWizard
-        isOpen={showPostProperty}
-        files={files}
-        onClose={() => setShowPostProperty(false)}
-        onListingCreated={(newProp) => {
-          setProperties([newProp, ...properties]);
-          setSelectedProperty(newProp);
-        }}
-      />
 
       {/* Messaging Drawer */}
       <MessagingDrawer
