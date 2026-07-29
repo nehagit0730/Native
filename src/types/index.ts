@@ -88,6 +88,8 @@ export interface Property {
   viewsCount: number;
   favoritesCount: number;
   createdAt: string;
+  approvalStatus?: 'approved' | 'pending' | 'rejected' | 'changes_requested';
+  approvalNotes?: string;
 }
 
 export interface BuilderProject {
@@ -202,3 +204,112 @@ export interface UserProfile {
   postedPropertyIds: string[];
   leadsCount: number;
 }
+
+export type CloudinaryFileType = 'image' | 'video' | 'pdf' | 'document' | 'icon' | 'floor_plan';
+
+export interface CloudinaryFile {
+  id: string;
+  publicId: string;
+  name: string;
+  url: string;
+  format: string;
+  sizeBytes: number;
+  fileType: CloudinaryFileType;
+  folder: string; // e.g. "/properties", "/floor-plans", "/documents", "/banners"
+  createdAt: string;
+  width?: number;
+  height?: number;
+}
+
+export type PageSectionType = 
+  | 'full_width_image_banner'
+  | 'full_width_video_banner'
+  | 'image_slideshow'
+  | 'image_with_text'
+  | 'text_columns'
+  | 'rich_text'
+  | 'faqs'
+  | 'dynamic_properties';
+
+export type DynamicPropertiesFilter = 'rent' | 'sale' | 'commercial' | 'residential' | 'featured' | 'latest' | 'all';
+
+export interface PageSection {
+  id: string;
+  type: PageSectionType;
+  title?: string;
+  subtitle?: string;
+  content?: string;
+  imageUrl?: string;
+  videoUrl?: string;
+  slideshowImages?: string[];
+  columns?: { title: string; description: string; icon?: string }[];
+  faqs?: { question: string; answer: string }[];
+  dynamicFilter?: DynamicPropertiesFilter;
+  buttonText?: string;
+  buttonUrl?: string;
+  backgroundColor?: string;
+}
+
+export interface WebsitePage {
+  id: string;
+  title: string;
+  slug: string;
+  status: 'published' | 'draft';
+  sections: PageSection[];
+  metaTitle?: string;
+  metaDescription?: string;
+  updatedAt: string;
+}
+
+export interface HeaderConfig {
+  logoText: string;
+  logoSubtext: string;
+  logoImageUrl?: string;
+  announcementText: string;
+  showAnnouncement: boolean;
+  stickyHeader: boolean;
+  showSearch: boolean;
+  navLinks: { id: string; label: string; url: string; category?: string }[];
+  megaMenu: {
+    title: string;
+    items: { label: string; url: string; badge?: string }[];
+  }[];
+  actionButtons: { id: string; label: string; type: 'primary' | 'secondary' | 'accent'; action: string }[];
+}
+
+export interface FooterConfig {
+  aboutText: string;
+  helplinePhone: string;
+  supportEmail: string;
+  copyrightText: string;
+  showNewsletter: boolean;
+  showPaymentIcons: boolean;
+  columns: {
+    title: string;
+    links: { label: string; url: string }[];
+  }[];
+  socialMedia: { platform: string; url: string; enabled: boolean }[];
+}
+
+export interface TeamMember {
+  id: string;
+  name: string;
+  role: string;
+  email: string;
+  phone: string;
+  avatar: string;
+  listingsManaged: number;
+}
+
+export interface PropertyAlert {
+  id: string;
+  title: string;
+  city: string;
+  purpose: PropertyPurpose | 'all';
+  maxPrice: number;
+  bedrooms: number[];
+  frequency: 'daily' | 'instant' | 'weekly';
+  createdAt: string;
+  active: boolean;
+}
+

@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
+import { getNeonSql, getCloudinary } from './src/services/serverIntegrations.js';
 import { INITIAL_PROPERTIES, BUILDER_PROJECTS, POPULAR_CITIES, LOCALITY_REVIEWS } from './src/data/mockData.js';
 import { Property, Lead, ChatMessage, LocalityReview } from './src/types/index.js';
 
@@ -72,7 +73,84 @@ let reviewsStore: LocalityReview[] = [...LOCALITY_REVIEWS];
 
 // 1. Health check
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', service: 'Shine Native API', timestamp: new Date().toISOString() });
+  const neonSql = getNeonSql();
+  const cld = getCloudinary();
+  res.json({ 
+    status: 'ok', 
+    service: 'Shine Native API', 
+    integrations: {
+      neonPostgres: Boolean(neonSql),
+      cloudinary: Boolean(cld)
+    },
+    timestamp: new Date().toISOString() 
+  });
+});
+
+// Neon PostgreSQL Status & Direct Query Endpoint
+app.get('/api/neon/status', async (req, res) => {
+  const sql = getNeonSql();
+  if (!sql) {
+    return res.json({
+      connected: false,
+      message: 'DATABASE_URL is not configured in .env.example. Add your Neon connection string to enable live PostgreSQL queries.'
+    });
+  }
+  try {
+    const result = await sql`SELECT NOW() as current_time, version();`;
+    res.json({
+      connected: true,
+      provider: 'Neon PostgreSQL',
+      serverTime: result[0]?.current_time,
+      version: result[0]?.version
+    });
+  } catch (err: any) {
+    res.status(500).json({ connected: false, error: err.message });
+  }
+});
+
+// Cloudinary Status & Signature Endpoint
+app.get('/api/cloudinary/status', (req, res) => {
+  const cld = getCloudinary();
+  if (!cld) {
+    return res.json({
+      configured: false,
+      cloudName: process.env.CLOUDINARY_CLOUD_NAME || null,
+      message: 'CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, or CLOUDINARY_API_SECRET not set in environment.'
+    });
+  }
+  res.json({
+    configured: true,
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+    apiKeyConfigured: Boolean(process.env.CLOUDINARY_API_KEY)
+  });
+});
+
+app.post('/api/cloudinary/signature', (req, res) => {
+  const cld = getCloudinary();
+  if (!cld) {
+    return res.status(400).json({
+      success: false,
+      message: 'Cloudinary credentials missing in environment'
+    });
+  }
+  try {
+    const timestamp = Math.round(new Date().getTime() / 1000);
+    const folder = req.body.folder || 'properties';
+    const signature = cld.utils.api_sign_request(
+      { timestamp, folder },
+      process.env.CLOUDINARY_API_SECRET!
+    );
+    res.json({
+      success: true,
+      timestamp,
+      signature,
+      apiKey: process.env.CLOUDINARY_API_KEY,
+      cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+      folder
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // 2. Get Properties with filters, search, and sorting

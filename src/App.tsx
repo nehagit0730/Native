@@ -369,10 +369,12 @@ export default function App() {
         {view === 'dashboard' && (
           <Dashboard
             currentRole={currentRole}
+            onRoleChange={setCurrentRole}
             properties={properties}
             savedProperties={savedPropertyList}
             onSelectProperty={setSelectedProperty}
             onOpenPostProperty={() => setShowPostProperty(true)}
+            onUpdateProperties={setProperties}
           />
         )}
       </main>
