@@ -13,9 +13,20 @@ import {
   MessageSquare,
   Home
 } from 'lucide-react';
-import { Property, BuilderProject, SearchFilters, Role } from './types';
+import { 
+  Property, 
+  BuilderProject, 
+  SearchFilters, 
+  Role, 
+  WebsitePage, 
+  CloudinaryFile, 
+  HeaderConfig, 
+  FooterConfig 
+} from './types';
 import { fetchProperties, fetchBuilderProjects, submitLeadInquiry } from './services/api';
 import { POPULAR_CITIES, MOCK_BLOGS, LOCALITY_REVIEWS } from './data/mockData';
+import { INITIAL_PAGES, INITIAL_FILES } from './services/store';
+
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 import { Hero } from './components/Hero';
@@ -24,6 +35,9 @@ import { PropertySearch } from './components/PropertySearch';
 import { PropertyDetail } from './components/PropertyDetail';
 import { ProjectsView } from './components/ProjectsView';
 import { Dashboard } from './components/Dashboard';
+import { AdminDashboard } from './components/AdminDashboard';
+import { PageView } from './components/PageView';
+import { AuthModal } from './components/AuthModal';
 import { AISearchModal } from './components/AISearchModal';
 import { EMICalculator } from './components/EMICalculator';
 import { CompareDrawer } from './components/CompareDrawer';
@@ -33,14 +47,46 @@ import { MessagingDrawer } from './components/MessagingDrawer';
 export default function App() {
   const [currentRole, setCurrentRole] = useState<Role>('buyer');
   const [selectedCity, setSelectedCity] = useState<string>('Mumbai');
-  const [view, setView] = useState<'home' | 'search' | 'projects' | 'dashboard'>('home');
+  const [currentPath, setCurrentPath] = useState<string>(window.location.pathname || '/');
 
-  // Properties State
+  // Properties & Projects State
   const [properties, setProperties] = useState<Property[]>([]);
+  const [auditProperties, setAuditProperties] = useState<Property[]>([]);
   const [projects, setProjects] = useState<BuilderProject[]>([]);
   const [savedIds, setSavedIds] = useState<string[]>(['prop-1']);
   const [comparedIds, setComparedIds] = useState<string[]>([]);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+
+  // Store Collections
+  const [pages, setPages] = useState<WebsitePage[]>(INITIAL_PAGES);
+  const [files, setFiles] = useState<CloudinaryFile[]>(INITIAL_FILES);
+  const [headerConfig, setHeaderConfig] = useState<HeaderConfig>({
+    logoText: 'Shine Native',
+    tagline: 'Real Estate Marketplace',
+    navLinks: [
+      { label: 'Buy', url: '/search?purpose=sale' },
+      { label: 'Rent', url: '/search?purpose=rent' },
+      { label: 'New Projects', url: '/pages/new-project' },
+      { label: 'Luxury Living', url: '/pages/luxury-living' }
+    ]
+  });
+  const [footerConfig, setFooterConfig] = useState<FooterConfig>({
+    aboutText: 'Shine Native is India’s premier verified real estate portal powering seamless direct buyer, builder, and broker transactions.',
+    copyrightText: '© 2026 Shine Native Technologies Inc. All rights reserved.',
+    contactEmail: 'support@shinenative.com',
+    contactPhone: '+91 1800 200 9000'
+  });
+
+  // Authentication State
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
+  const [authenticatedRoles, setAuthenticatedRoles] = useState<Record<Role, boolean>>({
+    buyer: true,
+    owner: true,
+    broker: true,
+    builder: true
+  });
+  const [authModalOpen, setAuthModalOpen] = useState<boolean>(false);
+  const [authTargetRole, setAuthTargetRole] = useState<Role | 'admin'>('admin');
 
   // Modals & Drawers
   const [showAISearch, setShowAISearch] = useState(false);
@@ -71,6 +117,21 @@ export default function App() {
     sortBy: 'relevance'
   });
 
+  // Synchronize browser URL history navigation
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentPath(window.location.pathname || '/');
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const navigate = (path: string) => {
+    window.history.pushState({}, '', path);
+    setCurrentPath(path);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   // Load properties from backend API
   useEffect(() => {
     loadData();
@@ -82,8 +143,11 @@ export default function App() {
       const projData = await fetchBuilderProjects();
       setProperties(propData);
       setProjects(projData);
+
+      // Separate unverified/pending properties for Audit
+      setAuditProperties(propData.filter(p => !p.verified || p.postedBy === 'owner'));
     } catch (err) {
-      console.error(err);
+      console.error('Error fetching data:', err);
     }
   };
 
@@ -123,7 +187,7 @@ export default function App() {
       category: heroFilters.category,
       bedrooms: heroFilters.bedrooms
     });
-    setView('search');
+    navigate('/search');
   };
 
   const handleContactClick = (property: Property, type: 'call' | 'whatsapp') => {
@@ -135,15 +199,151 @@ export default function App() {
     }
   };
 
+  // Auth completion handler
+  const handleAuthenticated = (role: Role | 'admin') => {
+    if (role === 'admin') {
+      setIsAdminAuthenticated(true);
+      setCurrentRole('admin');
+    } else {
+      setAuthenticatedRoles(prev => ({ ...prev, [role]: true }));
+      setCurrentRole(role);
+    }
+  };
+
+  // Admin CRUD Handlers
+  const handleApproveProperty = (id: string) => {
+    setProperties(prev => prev.map(p => p.id === id ? { ...p, verified: true } : p));
+    setAuditProperties(prev => prev.filter(p => p.id !== id));
+  };
+
+  const handleRejectProperty = (id: string, reason: string) => {
+    setAuditProperties(prev => prev.filter(p => p.id !== id));
+    alert(`Property rejected: ${reason}`);
+  };
+
+  const handleRequestChanges = (id: string, notes: string) => {
+    alert(`Requested changes sent to property owner: ${notes}`);
+  };
+
+  const handleDeleteProperty = (id: string) => {
+    setProperties(prev => prev.filter(p => p.id !== id));
+  };
+
+  const handleDuplicateProperty = (id: string) => {
+    const prop = properties.find(p => p.id === id);
+    if (prop) {
+      const copy = { ...prop, id: `prop-copy-${Date.now()}`, title: `${prop.title} (Copy)` };
+      setProperties([copy, ...properties]);
+    }
+  };
+
+  const handleSaveProperty = (prop: Property) => {
+    setProperties(prev => {
+      const exists = prev.some(p => p.id === prop.id);
+      if (exists) return prev.map(p => p.id === prop.id ? prop : p);
+      return [prop, ...prev];
+    });
+  };
+
+  const handleUploadFile = (file: CloudinaryFile) => {
+    setFiles([file, ...files]);
+  };
+
+  const handleDeleteFile = (id: string) => {
+    setFiles(prev => prev.filter(f => f.id !== id));
+  };
+
+  const handleRenameFile = (id: string, newName: string) => {
+    setFiles(prev => prev.map(f => f.id === id ? { ...f, name: newName } : f));
+  };
+
+  const handleSavePage = (page: WebsitePage) => {
+    setPages(prev => {
+      const idx = prev.findIndex(p => p.id === page.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = page;
+        return next;
+      }
+      return [...prev, page];
+    });
+  };
+
+  const handleDeletePage = (id: string) => {
+    setPages(prev => prev.filter(p => p.id !== id));
+  };
+
+  const handleDuplicatePage = (id: string) => {
+    const pg = pages.find(p => p.id === id);
+    if (pg) {
+      const copy = {
+        ...pg,
+        id: `page-${Date.now()}`,
+        title: `${pg.title} (Copy)`,
+        slug: `${pg.slug}-copy`
+      };
+      setPages([...pages, copy]);
+    }
+  };
+
   const savedPropertyList = properties.filter((p) => savedIds.includes(p.id));
   const comparedPropertyList = properties.filter((p) => comparedIds.includes(p.id));
+
+  // Determine current active view based on URL path
+  const isAdminRoute = currentPath.startsWith('/admin-dashboard');
+  const isBuilderRoute = currentPath === '/builder-dashboard';
+  const isBrokerRoute = currentPath === '/broker-dashboard';
+  const isOwnerRoute = currentPath === '/owner-dashboard';
+  const isBuyerRoute = currentPath === '/buyer-dashboard';
+  const isPagesRoute = currentPath.startsWith('/pages/');
+  const isPropertyRoute = currentPath.startsWith('/properties/');
+  const isProjectsRoute = currentPath === '/projects';
+  const isSearchRoute = currentPath === '/search';
+
+  // Extract subtab for Admin Dashboard
+  const adminSubTab = isAdminRoute ? currentPath.replace('/admin-dashboard/', '').replace('/admin-dashboard', '') : '';
+
+  // Extract custom page slug
+  const pageSlug = isPagesRoute ? currentPath.replace('/pages/', '') : '';
+  const currentCustomPage = pages.find(p => p.slug === pageSlug) || (pageSlug ? {
+    id: `temp-${pageSlug}`,
+    title: pageSlug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+    slug: pageSlug,
+    status: 'published',
+    updatedAt: new Date().toISOString(),
+    sections: [
+      {
+        id: `sec-temp-1`,
+        type: 'full_width_image_banner',
+        title: pageSlug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+        subtitle: 'Fully admin customizable section built with Shine Native Page Builder',
+        imageUrl: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?q=80&w=1600&auto=format&fit=crop',
+        buttonText: 'Explore Real Estate',
+        buttonUrl: '/search'
+      },
+      {
+        id: `sec-temp-2`,
+        type: 'dynamic_properties',
+        title: 'Featured Townships & Listings',
+        subtitle: 'Curated homes verified by expert real estate auditors',
+        dynamicFilter: 'featured'
+      }
+    ]
+  } as WebsitePage : null);
+
+  // Extract property slug/id
+  const propertySlug = isPropertyRoute ? currentPath.replace('/properties/', '') : '';
+  const currentPropertyFromUrl = properties.find(p => p.slug === propertySlug || p.id === propertySlug);
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
       {/* Global Header */}
       <Header
         currentRole={currentRole}
-        onRoleChange={setCurrentRole}
+        onRoleChange={(role) => {
+          setCurrentRole(role);
+          navigate(`/${role === 'admin' ? 'admin' : role}-dashboard`);
+        }}
         selectedCity={selectedCity}
         onCitySelect={(city) => {
           setSelectedCity(city);
@@ -151,27 +351,157 @@ export default function App() {
         }}
         savedCount={savedIds.length}
         compareCount={comparedIds.length}
-        onOpenWishlist={() => setView('dashboard')}
+        onOpenWishlist={() => navigate('/buyer-dashboard')}
         onOpenCompare={() => {
-          if (comparedIds.length === 0) alert('Add properties to compare first using the compare icon on cards.');
+          if (comparedIds.length === 0) alert('Add properties to compare first using the scale icon on cards.');
         }}
         onOpenPostProperty={() => setShowPostProperty(true)}
         onOpenAISearch={() => setShowAISearch(true)}
         onOpenEMICalculator={() => setShowEMI(true)}
-        onOpenDashboard={() => setView('dashboard')}
+        onOpenDashboard={() => navigate(`/${currentRole === 'admin' ? 'admin' : currentRole}-dashboard`)}
         onOpenMessages={() => setShowMessages(true)}
-        onNavigateHome={() => setView('home')}
+        onNavigateHome={() => navigate('/')}
         onNavigateSearch={(p) => {
           if (p) setFilters({ ...filters, purpose: p });
-          setView('search');
+          navigate('/search');
         }}
-        onNavigateProjects={() => setView('projects')}
+        onNavigateProjects={() => navigate('/projects')}
+        onNavigateUrl={(url) => navigate(url)}
       />
 
-      {/* Main View Router */}
+      {/* Main Content Router */}
       <main className="flex-1">
-        {/* VIEW 1: HOME PAGE */}
-        {view === 'home' && (
+        {/* ROUTE 1: ADMIN DASHBOARD */}
+        {isAdminRoute && (
+          !isAdminAuthenticated ? (
+            <div className="py-24 max-w-md mx-auto text-center space-y-4 px-4">
+              <ShieldCheck className="w-16 h-16 text-blue-600 mx-auto animate-bounce" />
+              <h2 className="text-2xl font-extrabold text-slate-900">Admin Authentication Required</h2>
+              <p className="text-xs text-slate-600">
+                Please log in with administrator credentials (Username: <code className="font-bold text-amber-700">admin</code>, Password: <code className="font-bold text-amber-700">admin</code>).
+              </p>
+              <button
+                onClick={() => {
+                  setAuthTargetRole('admin');
+                  setAuthModalOpen(true);
+                }}
+                className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-6 py-3 rounded-xl shadow-lg cursor-pointer"
+              >
+                Open Admin Login Modal
+              </button>
+            </div>
+          ) : (
+            <AdminDashboard
+              properties={properties}
+              auditProperties={auditProperties}
+              files={files}
+              pages={pages}
+              headerConfig={headerConfig}
+              footerConfig={footerConfig}
+              initialSubTab={adminSubTab}
+              onApproveProperty={handleApproveProperty}
+              onRejectProperty={handleRejectProperty}
+              onRequestChanges={handleRequestChanges}
+              onDeleteProperty={handleDeleteProperty}
+              onDuplicateProperty={handleDuplicateProperty}
+              onSaveProperty={handleSaveProperty}
+              onOpenAddProperty={() => setShowPostProperty(true)}
+              onPreviewProperty={(p) => setSelectedProperty(p)}
+              onUploadFile={handleUploadFile}
+              onDeleteFile={handleDeleteFile}
+              onRenameFile={handleRenameFile}
+              onSavePage={handleSavePage}
+              onDeletePage={handleDeletePage}
+              onDuplicatePage={handleDuplicatePage}
+              onSaveHeaderConfig={setHeaderConfig}
+              onSaveFooterConfig={setFooterConfig}
+            />
+          )
+        )}
+
+        {/* ROUTE 2: ROLE DASHBOARDS (BUILDER, BROKER, OWNER, BUYER) */}
+        {(isBuilderRoute || isBrokerRoute || isOwnerRoute || isBuyerRoute) && (
+          <Dashboard
+            currentRole={
+              isBuilderRoute ? 'builder' :
+              isBrokerRoute ? 'broker' :
+              isOwnerRoute ? 'owner' : 'buyer'
+            }
+            onRoleChange={(role) => {
+              setCurrentRole(role);
+              navigate(`/${role}-dashboard`);
+            }}
+            properties={properties}
+            savedProperties={savedPropertyList}
+            onSelectProperty={(p) => setSelectedProperty(p)}
+            onOpenPostProperty={() => setShowPostProperty(true)}
+            onUpdateProperties={setProperties}
+          />
+        )}
+
+        {/* ROUTE 3: CUSTOM PAGE BUILDER RENDERER (/pages/:slug) */}
+        {isPagesRoute && currentCustomPage && (
+          <PageView
+            page={currentCustomPage}
+            properties={properties}
+            savedIds={savedIds}
+            comparedIds={comparedIds}
+            onToggleSave={handleToggleSave}
+            onToggleCompare={handleToggleCompare}
+            onSelectProperty={(p) => setSelectedProperty(p)}
+            onContactClick={handleContactClick}
+            onNavigatePage={(url) => navigate(url)}
+          />
+        )}
+
+        {/* ROUTE 4: PROPERTY DETAIL URL (/properties/:slug) */}
+        {isPropertyRoute && currentPropertyFromUrl && (
+          <div className="max-w-7xl mx-auto px-4 py-8">
+            <button
+              onClick={() => navigate('/search')}
+              className="mb-4 text-xs font-bold text-blue-600 hover:underline flex items-center"
+            >
+              ← Back to Search
+            </button>
+            <PropertyCard
+              property={currentPropertyFromUrl}
+              isSaved={savedIds.includes(currentPropertyFromUrl.id)}
+              isCompared={comparedIds.includes(currentPropertyFromUrl.id)}
+              onToggleSave={handleToggleSave}
+              onToggleCompare={handleToggleCompare}
+              onSelectProperty={(p) => setSelectedProperty(p)}
+              onContactClick={handleContactClick}
+            />
+          </div>
+        )}
+
+        {/* ROUTE 5: SEARCH LISTINGS (/search) */}
+        {isSearchRoute && (
+          <PropertySearch
+            properties={properties}
+            filters={filters}
+            onFilterChange={setFilters}
+            savedIds={savedIds}
+            comparedIds={comparedIds}
+            onToggleSave={handleToggleSave}
+            onToggleCompare={handleToggleCompare}
+            onSelectProperty={(p) => setSelectedProperty(p)}
+            onContactClick={handleContactClick}
+          />
+        )}
+
+        {/* ROUTE 6: NEW PROJECTS (/projects) */}
+        {isProjectsRoute && (
+          <ProjectsView
+            projects={projects}
+            onOpenInquiryModal={(projName) => {
+              alert(`Inquiry request submitted for ${projName}! Our builder representative will reach out.`);
+            }}
+          />
+        )}
+
+        {/* ROUTE 7: DEFAULT HOME PAGE (/) */}
+        {!isAdminRoute && !isBuilderRoute && !isBrokerRoute && !isOwnerRoute && !isBuyerRoute && !isPagesRoute && !isPropertyRoute && !isProjectsRoute && !isSearchRoute && (
           <div className="space-y-16 pb-12">
             {/* Search Hero */}
             <Hero
@@ -197,7 +527,7 @@ export default function App() {
                   </h2>
                 </div>
                 <button
-                  onClick={() => setView('search')}
+                  onClick={() => navigate('/search')}
                   className="text-amber-700 hover:text-amber-800 font-extrabold text-xs flex items-center space-x-1 cursor-pointer"
                 >
                   <span>See All Properties</span>
@@ -214,7 +544,7 @@ export default function App() {
                     isCompared={comparedIds.includes(prop.id)}
                     onToggleSave={handleToggleSave}
                     onToggleCompare={handleToggleCompare}
-                    onSelectProperty={setSelectedProperty}
+                    onSelectProperty={(p) => setSelectedProperty(p)}
                     onContactClick={handleContactClick}
                   />
                 ))}
@@ -243,7 +573,7 @@ export default function App() {
                       onClick={() => {
                         setSelectedCity(city.name);
                         setFilters({ ...filters, city: city.name });
-                        setView('search');
+                        navigate('/search');
                       }}
                       className="group relative h-64 rounded-3xl overflow-hidden cursor-pointer shadow-lg border border-slate-800"
                     >
@@ -282,7 +612,7 @@ export default function App() {
                   </h2>
                 </div>
                 <button
-                  onClick={() => setView('projects')}
+                  onClick={() => navigate('/projects')}
                   className="text-amber-700 hover:text-amber-800 font-extrabold text-xs flex items-center"
                 >
                   <span>View All Projects</span>
@@ -300,8 +630,8 @@ export default function App() {
                       <p className="text-xs text-slate-500">{proj.locality}, {proj.city}</p>
                       <p className="text-amber-600 font-extrabold text-sm">{proj.startingPriceFormatted}</p>
                       <button
-                        onClick={() => setView('projects')}
-                        className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors mt-2"
+                        onClick={() => navigate('/projects')}
+                        className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors mt-2 cursor-pointer"
                       >
                         Explore Project
                       </button>
@@ -339,45 +669,15 @@ export default function App() {
             </section>
           </div>
         )}
-
-        {/* VIEW 2: SEARCH LISTINGS */}
-        {view === 'search' && (
-          <PropertySearch
-            properties={properties}
-            filters={filters}
-            onFilterChange={setFilters}
-            savedIds={savedIds}
-            comparedIds={comparedIds}
-            onToggleSave={handleToggleSave}
-            onToggleCompare={handleToggleCompare}
-            onSelectProperty={setSelectedProperty}
-            onContactClick={handleContactClick}
-          />
-        )}
-
-        {/* VIEW 3: NEW PROJECTS */}
-        {view === 'projects' && (
-          <ProjectsView
-            projects={projects}
-            onOpenInquiryModal={(projName) => {
-              alert(`Inquiry request sent to ${projName} sales team!`);
-            }}
-          />
-        )}
-
-        {/* VIEW 4: DASHBOARD */}
-        {view === 'dashboard' && (
-          <Dashboard
-            currentRole={currentRole}
-            onRoleChange={setCurrentRole}
-            properties={properties}
-            savedProperties={savedPropertyList}
-            onSelectProperty={setSelectedProperty}
-            onOpenPostProperty={() => setShowPostProperty(true)}
-            onUpdateProperties={setProperties}
-          />
-        )}
       </main>
+
+      {/* Authentication Modal */}
+      <AuthModal
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        targetRole={authTargetRole}
+        onAuthenticated={handleAuthenticated}
+      />
 
       {/* Property Detail Modal */}
       <PropertyDetail
@@ -391,7 +691,7 @@ export default function App() {
         onOpenEMICalculator={() => setShowEMI(true)}
         onSubmitInquiry={submitLeadInquiry}
         allProperties={properties}
-        onSelectProperty={setSelectedProperty}
+        onSelectProperty={(p) => setSelectedProperty(p)}
       />
 
       {/* AI Search Advisor Modal */}
@@ -402,7 +702,7 @@ export default function App() {
         comparedIds={comparedIds}
         onToggleSave={handleToggleSave}
         onToggleCompare={handleToggleCompare}
-        onSelectProperty={setSelectedProperty}
+        onSelectProperty={(p) => setSelectedProperty(p)}
         onContactClick={handleContactClick}
       />
 
@@ -431,7 +731,7 @@ export default function App() {
         comparedProperties={comparedPropertyList}
         onRemoveCompare={handleToggleCompare}
         onClearCompare={() => setComparedIds([])}
-        onSelectProperty={setSelectedProperty}
+        onSelectProperty={(p) => setSelectedProperty(p)}
       />
 
       {/* Global Footer */}
@@ -439,11 +739,11 @@ export default function App() {
         onSelectCity={(city) => {
           setSelectedCity(city);
           setFilters({ ...filters, city });
-          setView('search');
+          navigate('/search');
         }}
         onNavigateCategory={(cat) => {
           setFilters({ ...filters, category: cat as any });
-          setView('search');
+          navigate('/search');
         }}
         onOpenEMICalculator={() => setShowEMI(true)}
       />

@@ -33,6 +33,7 @@ interface HeaderProps {
   onNavigateHome: () => void;
   onNavigateSearch: (purpose?: 'sale' | 'rent') => void;
   onNavigateProjects: () => void;
+  onNavigateUrl?: (path: string) => void;
 }
 
 const CITIES = ['Mumbai', 'Bengaluru', 'Delhi NCR', 'Hyderabad', 'Pune', 'Goa'];
@@ -53,7 +54,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenMessages,
   onNavigateHome,
   onNavigateSearch,
-  onNavigateProjects
+  onNavigateProjects,
+  onNavigateUrl
 }) => {
   const [showCityDropdown, setShowCityDropdown] = useState(false);
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
@@ -109,12 +111,15 @@ export const Header: React.FC<HeaderProps> = ({
                     onClick={() => {
                       onRoleChange(role);
                       setShowRoleDropdown(false);
+                      if (onNavigateUrl) {
+                        onNavigateUrl(`/${role === 'admin' ? 'admin' : role}-dashboard`);
+                      }
                     }}
                     className={`w-full text-left px-3 py-2 text-xs font-medium flex items-center justify-between hover:bg-blue-50 hover:text-blue-700 cursor-pointer ${
                       currentRole === role ? 'bg-blue-50 text-blue-700 font-bold' : ''
                     }`}
                   >
-                    <span className="capitalize">{role}</span>
+                    <span className="capitalize">{role === 'admin' ? 'Admin Portal' : `${role} Dashboard`}</span>
                     {currentRole === role && <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />}
                   </button>
                 ))}

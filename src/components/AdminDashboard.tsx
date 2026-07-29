@@ -99,6 +99,8 @@ interface AdminDashboardProps {
   // Header / Footer handlers
   onSaveHeaderConfig: (cfg: HeaderConfig) => void;
   onSaveFooterConfig: (cfg: FooterConfig) => void;
+  initialSubTab?: string;
+  onNavigateSubTab?: (path: string) => void;
 }
 
 const TRAFFIC_DATA = [
@@ -1228,26 +1230,297 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             </div>
                           </div>
 
-                          {/* Controls based on section type */}
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                          {/* Fully Admin Customizable Controls Panel */}
+                          <div className="space-y-4 pt-2 text-xs">
+                            {/* Row 1: Title, Subtitle, Overlay Badge */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                              <div>
+                                <label className="text-[10px] text-slate-400 font-bold block mb-1">Section Title</label>
+                                <input
+                                  type="text"
+                                  value={sec.title || ''}
+                                  placeholder="e.g. Modern Residential Project"
+                                  onChange={(e) => {
+                                    if (!editingPage) return;
+                                    const newSecs = [...editingPage.sections];
+                                    newSecs[index].title = e.target.value;
+                                    setEditingPage({ ...editingPage, sections: newSecs });
+                                  }}
+                                  className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white font-medium"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="text-[10px] text-slate-400 font-bold block mb-1">Subtitle / Category</label>
+                                <input
+                                  type="text"
+                                  value={sec.subtitle || ''}
+                                  placeholder="e.g. Handpicked luxury homes"
+                                  onChange={(e) => {
+                                    if (!editingPage) return;
+                                    const newSecs = [...editingPage.sections];
+                                    newSecs[index].subtitle = e.target.value;
+                                    setEditingPage({ ...editingPage, sections: newSecs });
+                                  }}
+                                  className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white font-medium"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="text-[10px] text-amber-400 font-bold block mb-1">Overlay Badge Text</label>
+                                <input
+                                  type="text"
+                                  value={sec.overlayText || ''}
+                                  placeholder="e.g. 0% BROKERAGE"
+                                  onChange={(e) => {
+                                    if (!editingPage) return;
+                                    const newSecs = [...editingPage.sections];
+                                    newSecs[index].overlayText = e.target.value;
+                                    setEditingPage({ ...editingPage, sections: newSecs });
+                                  }}
+                                  className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-amber-300 font-bold"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Row 2: Description / Content Body */}
                             <div>
-                              <label className="text-[10px] text-slate-400 font-bold">Section Title</label>
-                              <input
-                                type="text"
-                                value={sec.title || ''}
+                              <label className="text-[10px] text-slate-400 font-bold block mb-1">Description / Content</label>
+                              <textarea
+                                rows={2}
+                                value={sec.content || ''}
+                                placeholder="Write detailed content text for this section..."
                                 onChange={(e) => {
                                   if (!editingPage) return;
                                   const newSecs = [...editingPage.sections];
-                                  newSecs[index].title = e.target.value;
+                                  newSecs[index].content = e.target.value;
                                   setEditingPage({ ...editingPage, sections: newSecs });
                                 }}
                                 className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white font-medium"
                               />
                             </div>
 
-                            {sec.type === 'dynamic_properties' && (
+                            {/* Row 3: Image Upload / Select from Cloudinary */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                               <div>
-                                <label className="text-[10px] text-amber-400 font-bold">Dynamic Property Filter</label>
+                                <label className="text-[10px] text-cyan-400 font-bold block mb-1">
+                                  Image URL (or select from Cloudinary File Manager)
+                                </label>
+                                <div className="space-y-1">
+                                  <input
+                                    type="text"
+                                    value={sec.imageUrl || ''}
+                                    placeholder="https://images.unsplash.com/..."
+                                    onChange={(e) => {
+                                      if (!editingPage) return;
+                                      const newSecs = [...editingPage.sections];
+                                      newSecs[index].imageUrl = e.target.value;
+                                      setEditingPage({ ...editingPage, sections: newSecs });
+                                    }}
+                                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white font-mono text-[11px]"
+                                  />
+                                  {files.length > 0 && (
+                                    <select
+                                      onChange={(e) => {
+                                        if (!editingPage || !e.target.value) return;
+                                        const newSecs = [...editingPage.sections];
+                                        newSecs[index].imageUrl = e.target.value;
+                                        setEditingPage({ ...editingPage, sections: newSecs });
+                                      }}
+                                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-cyan-300 text-[10px] font-bold"
+                                    >
+                                      <option value="">-- Quick Pick from Cloudinary Files --</option>
+                                      {files.filter(f => f.fileType === 'image' || f.fileType === 'floor_plan').map(f => (
+                                        <option key={f.id} value={f.url}>{f.name} ({f.folder})</option>
+                                      ))}
+                                    </select>
+                                  )}
+                                </div>
+                              </div>
+
+                              {sec.type === 'full_width_video_banner' ? (
+                                <div>
+                                  <label className="text-[10px] text-purple-400 font-bold block mb-1">Video URL (MP4 / WebM)</label>
+                                  <input
+                                    type="text"
+                                    value={sec.videoUrl || ''}
+                                    placeholder="https://commondatastorage.googleapis.com/..."
+                                    onChange={(e) => {
+                                      if (!editingPage) return;
+                                      const newSecs = [...editingPage.sections];
+                                      newSecs[index].videoUrl = e.target.value;
+                                      setEditingPage({ ...editingPage, sections: newSecs });
+                                    }}
+                                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white font-mono text-[11px]"
+                                  />
+                                </div>
+                              ) : (
+                                <div>
+                                  <label className="text-[10px] text-emerald-400 font-bold block mb-1">Action Button Text & URL</label>
+                                  <div className="flex space-x-2">
+                                    <input
+                                      type="text"
+                                      placeholder="Button Label"
+                                      value={sec.buttonText || ''}
+                                      onChange={(e) => {
+                                        if (!editingPage) return;
+                                        const newSecs = [...editingPage.sections];
+                                        newSecs[index].buttonText = e.target.value;
+                                        setEditingPage({ ...editingPage, sections: newSecs });
+                                      }}
+                                      className="w-1/2 bg-slate-800 border border-slate-700 rounded-lg p-2 text-white"
+                                    />
+                                    <input
+                                      type="text"
+                                      placeholder="URL (e.g. /search)"
+                                      value={sec.buttonUrl || ''}
+                                      onChange={(e) => {
+                                        if (!editingPage) return;
+                                        const newSecs = [...editingPage.sections];
+                                        newSecs[index].buttonUrl = e.target.value;
+                                        setEditingPage({ ...editingPage, sections: newSecs });
+                                      }}
+                                      className="w-1/2 bg-slate-800 border border-slate-700 rounded-lg p-2 text-white font-mono"
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Row 4: Styling Options (Overlay Color, Opacity, Text Color, Background Color, Align) */}
+                            <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800 space-y-3">
+                              <span className="text-[10px] font-black uppercase text-blue-400 tracking-wider block">
+                                Visual Style & Color Controls
+                              </span>
+
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                <div>
+                                  <label className="text-[10px] text-slate-400 font-bold block mb-1">Background Color</label>
+                                  <input
+                                    type="color"
+                                    value={sec.backgroundColor || '#ffffff'}
+                                    onChange={(e) => {
+                                      if (!editingPage) return;
+                                      const newSecs = [...editingPage.sections];
+                                      newSecs[index].backgroundColor = e.target.value;
+                                      setEditingPage({ ...editingPage, sections: newSecs });
+                                    }}
+                                    className="w-full h-8 bg-slate-800 border border-slate-700 rounded-lg cursor-pointer p-0.5"
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="text-[10px] text-slate-400 font-bold block mb-1">Text Color</label>
+                                  <input
+                                    type="color"
+                                    value={sec.textColor || '#0f172a'}
+                                    onChange={(e) => {
+                                      if (!editingPage) return;
+                                      const newSecs = [...editingPage.sections];
+                                      newSecs[index].textColor = e.target.value;
+                                      setEditingPage({ ...editingPage, sections: newSecs });
+                                    }}
+                                    className="w-full h-8 bg-slate-800 border border-slate-700 rounded-lg cursor-pointer p-0.5"
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="text-[10px] text-slate-400 font-bold block mb-1">Overlay Color</label>
+                                  <input
+                                    type="color"
+                                    value={sec.overlayColor || '#000000'}
+                                    onChange={(e) => {
+                                      if (!editingPage) return;
+                                      const newSecs = [...editingPage.sections];
+                                      newSecs[index].overlayColor = e.target.value;
+                                      setEditingPage({ ...editingPage, sections: newSecs });
+                                    }}
+                                    className="w-full h-8 bg-slate-800 border border-slate-700 rounded-lg cursor-pointer p-0.5"
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="text-[10px] text-slate-400 font-bold block mb-1">
+                                    Overlay Opacity: {sec.overlayOpacity ?? 50}%
+                                  </label>
+                                  <input
+                                    type="range"
+                                    min="0"
+                                    max="100"
+                                    value={sec.overlayOpacity ?? 50}
+                                    onChange={(e) => {
+                                      if (!editingPage) return;
+                                      const newSecs = [...editingPage.sections];
+                                      newSecs[index].overlayOpacity = parseInt(e.target.value);
+                                      setEditingPage({ ...editingPage, sections: newSecs });
+                                    }}
+                                    className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500 mt-2"
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
+                                <div>
+                                  <label className="text-[10px] text-slate-400 font-bold block mb-1">Text Alignment</label>
+                                  <select
+                                    value={sec.textAlign || 'center'}
+                                    onChange={(e) => {
+                                      if (!editingPage) return;
+                                      const newSecs = [...editingPage.sections];
+                                      newSecs[index].textAlign = e.target.value as any;
+                                      setEditingPage({ ...editingPage, sections: newSecs });
+                                    }}
+                                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-1.5 text-white font-bold text-[11px]"
+                                  >
+                                    <option value="left">Left Aligned</option>
+                                    <option value="center">Center Aligned</option>
+                                    <option value="right">Right Aligned</option>
+                                  </select>
+                                </div>
+
+                                <div>
+                                  <label className="text-[10px] text-slate-400 font-bold block mb-1">Heading Size</label>
+                                  <select
+                                    value={sec.headingSize || 'medium'}
+                                    onChange={(e) => {
+                                      if (!editingPage) return;
+                                      const newSecs = [...editingPage.sections];
+                                      newSecs[index].headingSize = e.target.value as any;
+                                      setEditingPage({ ...editingPage, sections: newSecs });
+                                    }}
+                                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-1.5 text-white font-bold text-[11px]"
+                                  >
+                                    <option value="small">Small</option>
+                                    <option value="medium">Medium</option>
+                                    <option value="large">Large Banner</option>
+                                    <option value="huge">Huge Display</option>
+                                  </select>
+                                </div>
+
+                                <div>
+                                  <label className="text-[10px] text-slate-400 font-bold block mb-1">Section Padding</label>
+                                  <select
+                                    value={sec.paddingY || 'normal'}
+                                    onChange={(e) => {
+                                      if (!editingPage) return;
+                                      const newSecs = [...editingPage.sections];
+                                      newSecs[index].paddingY = e.target.value as any;
+                                      setEditingPage({ ...editingPage, sections: newSecs });
+                                    }}
+                                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-1.5 text-white font-bold text-[11px]"
+                                  >
+                                    <option value="compact">Compact (Py-8)</option>
+                                    <option value="normal">Normal (Py-16)</option>
+                                    <option value="spacious">Spacious (Py-24)</option>
+                                  </select>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Section Specific Controllers */}
+                            {sec.type === 'dynamic_properties' && (
+                              <div className="p-3 bg-amber-950/40 border border-amber-800/40 rounded-xl">
+                                <label className="text-[10px] text-amber-400 font-bold block mb-1">Dynamic Property Filter Feed</label>
                                 <select
                                   value={sec.dynamicFilter || 'all'}
                                   onChange={(e) => {

@@ -248,6 +248,17 @@ export interface PageSection {
   buttonText?: string;
   buttonUrl?: string;
   backgroundColor?: string;
+  textColor?: string;
+  overlayText?: string;
+  overlayColor?: string;
+  overlayOpacity?: number; // 0 to 100
+  textAlign?: 'left' | 'center' | 'right';
+  buttonColor?: string;
+  buttonTextColor?: string;
+  headingSize?: 'small' | 'medium' | 'large' | 'huge';
+  paddingY?: 'compact' | 'normal' | 'spacious';
+  columnsCount?: number;
+  fullWidth?: boolean;
 }
 
 export interface WebsitePage {
