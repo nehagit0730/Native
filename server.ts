@@ -2,9 +2,9 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
-import { getNeonSql, getCloudinary } from './src/services/serverIntegrations';
-import { INITIAL_PROPERTIES, BUILDER_PROJECTS, POPULAR_CITIES, LOCALITY_REVIEWS } from './src/data/mockData';
-import { Property, Lead, ChatMessage, LocalityReview } from './src/types';
+import { getNeonSql, getCloudinary } from './src/services/serverIntegrations.js';
+import { INITIAL_PROPERTIES, BUILDER_PROJECTS, POPULAR_CITIES, LOCALITY_REVIEWS } from './src/data/mockData.js';
+import { Property, Lead, ChatMessage, LocalityReview } from './src/types/index.js';
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
