@@ -1,5 +1,6 @@
-import { Property, BuilderProject, CityInfo, SearchFilters, Lead, ChatMessage, LocalityReview } from '../types';
+import { Property, BuilderProject, CityInfo, SearchFilters, Lead, ChatMessage, LocalityReview, CloudinaryFile } from '../types';
 import { INITIAL_PROPERTIES, BUILDER_PROJECTS, POPULAR_CITIES, LOCALITY_REVIEWS } from '../data/mockData';
+import { INITIAL_FILES } from './store';
 
 async function safeFetchJson<T>(url: string, options?: RequestInit): Promise<T | null> {
   try {
@@ -274,4 +275,107 @@ export async function submitLocalityReview(review: Partial<LocalityReview>): Pro
     createdAt: new Date().toISOString().split('T')[0]
   };
   return newReview;
+}
+
+function compressAndReadImage(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    // If not an image (e.g. video or PDF), read directly
+    if (!file.type.startsWith('image/') || file.type.includes('svg')) {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = (err) => reject(err);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (e) => {
+      const img = new Image();
+      img.src = e.target?.result as string;
+      img.onload = () => {
+        const MAX_WIDTH = 1200;
+        const MAX_HEIGHT = 1200;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height = Math.round((height * MAX_WIDTH) / width);
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width = Math.round((width * MAX_HEIGHT) / height);
+            height = MAX_HEIGHT;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(e.target?.result as string);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.8));
+      };
+      img.onerror = () => resolve(e.target?.result as string);
+    };
+    reader.onerror = (err) => reject(err);
+  });
+}
+
+export async function fetchFiles(): Promise<CloudinaryFile[]> {
+  const json = await safeFetchJson<{ data?: CloudinaryFile[] }>('/api/files');
+  if (json && json.data) return json.data;
+  return INITIAL_FILES;
+}
+
+export async function uploadFile(file: File, folder?: string): Promise<CloudinaryFile> {
+  const fileData = await compressAndReadImage(file);
+  const json = await safeFetchJson<{ success: boolean; data: CloudinaryFile }>('/api/files/upload', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      fileData,
+      name: file.name,
+      folder: folder || '/uploads'
+    })
+  });
+
+  if (json && json.data) return json.data;
+
+  let fileType: any = 'image';
+  if (file.type.includes('video')) fileType = 'video';
+  else if (file.type.includes('pdf')) fileType = 'pdf';
+  else if (file.name.endsWith('.svg')) fileType = 'icon';
+
+  return {
+    id: `cld-${Date.now()}`,
+    publicId: `uploads/${file.name.replace(/\.[^/.]+$/, '')}`,
+    name: file.name,
+    url: fileData,
+    format: file.name.split('.').pop() || 'png',
+    sizeBytes: file.size,
+    fileType,
+    folder: folder || '/uploads',
+    createdAt: new Date().toISOString()
+  };
+}
+
+export async function renameFileApi(id: string, name: string): Promise<void> {
+  await safeFetchJson(`/api/files/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name })
+  });
+}
+
+export async function deleteFileApi(id: string): Promise<void> {
+  await safeFetchJson(`/api/files/${id}`, {
+    method: 'DELETE'
+  });
 }

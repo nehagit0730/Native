@@ -45,8 +45,10 @@ import {
   RefreshCw,
   Activity,
   Cloud,
-  ShieldCheck
+  ShieldCheck,
+  Loader2
 } from 'lucide-react';
+import { uploadFile } from '../services/api';
 import { 
   ResponsiveContainer, 
   AreaChart, 
@@ -248,28 +250,56 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  // Handle Simulated Upload to Cloudinary
-  const handleFileUploadSimulated = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Upload state
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const [uploadProgressText, setUploadProgressText] = useState('');
+  const [uploadingSectionIdx, setUploadingSectionIdx] = useState<number | null>(null);
+
+  // Handle Real Upload to Cloudinary & DB
+  const handleRealFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFiles = e.target.files;
     if (!uploadedFiles || uploadedFiles.length === 0) return;
     const file = uploadedFiles[0];
-    let fileType: CloudinaryFileType = 'image';
-    if (file.type.includes('video')) fileType = 'video';
-    else if (file.type.includes('pdf')) fileType = 'pdf';
-    else if (file.name.endsWith('.svg')) fileType = 'icon';
+    setIsUploadingFile(true);
+    setUploadProgressText(`Uploading ${file.name} to Cloudinary...`);
 
-    const newCloudinaryFile: CloudinaryFile = {
-      id: `cld-${Date.now()}`,
-      publicId: `uploads/${file.name.replace(/\.[^/.]+$/, '')}`,
-      name: file.name,
-      url: URL.createObjectURL(file),
-      format: file.name.split('.').pop() || 'png',
-      sizeBytes: file.size,
-      fileType,
-      folder: '/uploads',
-      createdAt: new Date().toISOString()
-    };
-    onUploadFile(newCloudinaryFile);
+    try {
+      const folderToUse = selectedFolder !== 'all' ? selectedFolder : '/uploads';
+      const uploadedCldFile = await uploadFile(file, folderToUse);
+      onUploadFile(uploadedCldFile);
+      setUploadProgressText('Upload successful!');
+      setTimeout(() => setUploadProgressText(''), 3000);
+    } catch (err: any) {
+      console.error('File upload failed:', err);
+      alert('Failed to upload file to Cloudinary: ' + (err.message || 'Unknown error'));
+    } finally {
+      setIsUploadingFile(false);
+      e.target.value = '';
+    }
+  };
+
+  // Upload section media directly to Cloudinary and attach to section
+  const handleUploadSectionMedia = async (sectionIndex: number, file: File, mediaType: 'image' | 'video') => {
+    if (!editingPage) return;
+    setUploadingSectionIdx(sectionIndex);
+    try {
+      const folderName = mediaType === 'video' ? '/videos' : '/banners';
+      const uploaded = await uploadFile(file, folderName);
+      onUploadFile(uploaded); // save to file manager & Neon DB
+      
+      const newSecs = [...editingPage.sections];
+      if (mediaType === 'image') {
+        newSecs[sectionIndex].imageUrl = uploaded.url;
+      } else {
+        newSecs[sectionIndex].videoUrl = uploaded.url;
+      }
+      setEditingPage({ ...editingPage, sections: newSecs });
+    } catch (err: any) {
+      console.error('Section media upload failed:', err);
+      alert('Failed to upload media to Cloudinary: ' + (err.message || 'Error'));
+    } finally {
+      setUploadingSectionIdx(null);
+    }
   };
 
   return (
@@ -823,15 +853,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
 
               {/* Upload Button */}
-              <label className="bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-700 hover:to-rose-700 text-white font-bold px-5 py-2.5 rounded-xl shadow-md flex items-center space-x-2 text-xs transition-all cursor-pointer">
-                <Upload className="w-4 h-4 stroke-[2.5]" />
-                <span>Upload to Cloudinary</span>
-                <input
-                  type="file"
-                  onChange={handleFileUploadSimulated}
-                  className="hidden"
-                />
-              </label>
+              <div className="flex items-center space-x-3">
+                {isUploadingFile && (
+                  <div className="flex items-center space-x-2 text-xs text-pink-400 font-bold bg-pink-950/60 border border-pink-500/30 px-3 py-1.5 rounded-xl animate-pulse">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>{uploadProgressText || 'Uploading to Cloudinary...'}</span>
+                  </div>
+                )}
+                <label className={`bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-700 hover:to-rose-700 text-white font-bold px-5 py-2.5 rounded-xl shadow-md flex items-center space-x-2 text-xs transition-all ${isUploadingFile ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
+                  {isUploadingFile ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4 stroke-[2.5]" />}
+                  <span>{isUploadingFile ? 'Uploading...' : 'Upload to Cloudinary'}</span>
+                  <input
+                    type="file"
+                    disabled={isUploadingFile}
+                    onChange={handleRealFileUpload}
+                    className="hidden"
+                  />
+                </label>
+              </div>
             </div>
 
             {/* Filter & View mode bar */}
@@ -1316,27 +1355,47 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               />
                             </div>
 
-                            {/* Row 3: Image Upload / Select from Cloudinary */}
+                            {/* Row 3: Image & Video Upload / Select from Cloudinary */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                               <div>
                                 <label className="text-[10px] text-cyan-400 font-bold block mb-1">
-                                  Image URL (or select from Cloudinary File Manager)
+                                  Section Image (Upload or Pick from Cloudinary)
                                 </label>
-                                <div className="space-y-1">
-                                  <input
-                                    type="text"
-                                    value={sec.imageUrl || ''}
-                                    placeholder="https://images.unsplash.com/..."
-                                    onChange={(e) => {
-                                      if (!editingPage) return;
-                                      const newSecs = [...editingPage.sections];
-                                      newSecs[index].imageUrl = e.target.value;
-                                      setEditingPage({ ...editingPage, sections: newSecs });
-                                    }}
-                                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white font-mono text-[11px]"
-                                  />
+                                <div className="space-y-1.5">
+                                  <div className="flex items-center space-x-2">
+                                    <input
+                                      type="text"
+                                      value={sec.imageUrl || ''}
+                                      placeholder="https://images.unsplash.com/..."
+                                      onChange={(e) => {
+                                        if (!editingPage) return;
+                                        const newSecs = [...editingPage.sections];
+                                        newSecs[index].imageUrl = e.target.value;
+                                        setEditingPage({ ...editingPage, sections: newSecs });
+                                      }}
+                                      className="flex-1 bg-slate-800 border border-slate-700 rounded-lg p-2 text-white font-mono text-[11px]"
+                                    />
+                                    <label className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold px-3 py-2 rounded-lg text-[10px] flex items-center space-x-1 cursor-pointer shrink-0">
+                                      {uploadingSectionIdx === index ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                                      <span>Upload</span>
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        disabled={uploadingSectionIdx === index}
+                                        onChange={(e) => {
+                                          if (e.target.files && e.target.files[0]) {
+                                            handleUploadSectionMedia(index, e.target.files[0], 'image');
+                                            e.target.value = '';
+                                          }
+                                        }}
+                                        className="hidden"
+                                      />
+                                    </label>
+                                  </div>
+
                                   {files.length > 0 && (
                                     <select
+                                      value={sec.imageUrl || ''}
                                       onChange={(e) => {
                                         if (!editingPage || !e.target.value) return;
                                         const newSecs = [...editingPage.sections];
@@ -1345,7 +1404,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                       }}
                                       className="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-cyan-300 text-[10px] font-bold"
                                     >
-                                      <option value="">-- Quick Pick from Cloudinary Files --</option>
+                                      <option value="">-- Quick Pick from Cloudinary File Manager --</option>
                                       {files.filter(f => f.fileType === 'image' || f.fileType === 'floor_plan').map(f => (
                                         <option key={f.id} value={f.url}>{f.name} ({f.folder})</option>
                                       ))}
@@ -1356,19 +1415,57 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                               {sec.type === 'full_width_video_banner' ? (
                                 <div>
-                                  <label className="text-[10px] text-purple-400 font-bold block mb-1">Video URL (MP4 / WebM)</label>
-                                  <input
-                                    type="text"
-                                    value={sec.videoUrl || ''}
-                                    placeholder="https://commondatastorage.googleapis.com/..."
-                                    onChange={(e) => {
-                                      if (!editingPage) return;
-                                      const newSecs = [...editingPage.sections];
-                                      newSecs[index].videoUrl = e.target.value;
-                                      setEditingPage({ ...editingPage, sections: newSecs });
-                                    }}
-                                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white font-mono text-[11px]"
-                                  />
+                                  <label className="text-[10px] text-purple-400 font-bold block mb-1">Video File (Upload or Pick from Cloudinary)</label>
+                                  <div className="space-y-1.5">
+                                    <div className="flex items-center space-x-2">
+                                      <input
+                                        type="text"
+                                        value={sec.videoUrl || ''}
+                                        placeholder="https://..."
+                                        onChange={(e) => {
+                                          if (!editingPage) return;
+                                          const newSecs = [...editingPage.sections];
+                                          newSecs[index].videoUrl = e.target.value;
+                                          setEditingPage({ ...editingPage, sections: newSecs });
+                                        }}
+                                        className="flex-1 bg-slate-800 border border-slate-700 rounded-lg p-2 text-white font-mono text-[11px]"
+                                      />
+                                      <label className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-3 py-2 rounded-lg text-[10px] flex items-center space-x-1 cursor-pointer shrink-0">
+                                        {uploadingSectionIdx === index ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                                        <span>Upload Video</span>
+                                        <input
+                                          type="file"
+                                          accept="video/*"
+                                          disabled={uploadingSectionIdx === index}
+                                          onChange={(e) => {
+                                            if (e.target.files && e.target.files[0]) {
+                                              handleUploadSectionMedia(index, e.target.files[0], 'video');
+                                              e.target.value = '';
+                                            }
+                                          }}
+                                          className="hidden"
+                                        />
+                                      </label>
+                                    </div>
+
+                                    {files.length > 0 && (
+                                      <select
+                                        value={sec.videoUrl || ''}
+                                        onChange={(e) => {
+                                          if (!editingPage || !e.target.value) return;
+                                          const newSecs = [...editingPage.sections];
+                                          newSecs[index].videoUrl = e.target.value;
+                                          setEditingPage({ ...editingPage, sections: newSecs });
+                                        }}
+                                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-purple-300 text-[10px] font-bold"
+                                      >
+                                        <option value="">-- Quick Pick Video from File Manager --</option>
+                                        {files.filter(f => f.fileType === 'video').map(f => (
+                                          <option key={f.id} value={f.url}>{f.name} ({f.folder})</option>
+                                        ))}
+                                      </select>
+                                    )}
+                                  </div>
                                 </div>
                               ) : (
                                 <div>

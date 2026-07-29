@@ -23,7 +23,7 @@ import {
   HeaderConfig, 
   FooterConfig 
 } from './types';
-import { fetchProperties, fetchBuilderProjects, submitLeadInquiry } from './services/api';
+import { fetchProperties, fetchBuilderProjects, submitLeadInquiry, fetchFiles, deleteFileApi, renameFileApi } from './services/api';
 import { POPULAR_CITIES, MOCK_BLOGS, LOCALITY_REVIEWS } from './data/mockData';
 import { INITIAL_PAGES, INITIAL_FILES } from './services/store';
 
@@ -141,8 +141,10 @@ export default function App() {
     try {
       const propData = await fetchProperties({ ...filters, city: selectedCity });
       const projData = await fetchBuilderProjects();
+      const fileData = await fetchFiles();
       setProperties(propData);
       setProjects(projData);
+      setFiles(fileData);
 
       // Separate unverified/pending properties for Audit
       setAuditProperties(propData.filter(p => !p.verified || p.postedBy === 'owner'));
@@ -246,15 +248,17 @@ export default function App() {
   };
 
   const handleUploadFile = (file: CloudinaryFile) => {
-    setFiles([file, ...files]);
+    setFiles(prev => [file, ...prev]);
   };
 
-  const handleDeleteFile = (id: string) => {
+  const handleDeleteFile = async (id: string) => {
     setFiles(prev => prev.filter(f => f.id !== id));
+    await deleteFileApi(id);
   };
 
-  const handleRenameFile = (id: string, newName: string) => {
+  const handleRenameFile = async (id: string, newName: string) => {
     setFiles(prev => prev.map(f => f.id === id ? { ...f, name: newName } : f));
+    await renameFileApi(id, newName);
   };
 
   const handleSavePage = (page: WebsitePage) => {
@@ -712,6 +716,7 @@ export default function App() {
       {/* Post Property Wizard Modal */}
       <PostPropertyWizard
         isOpen={showPostProperty}
+        files={files}
         onClose={() => setShowPostProperty(false)}
         onListingCreated={(newProp) => {
           setProperties([newProp, ...properties]);

@@ -23,6 +23,16 @@ export function getNeonSql() {
  * Gracefully returns null if Cloudinary environment variables are missing.
  */
 export function getCloudinary() {
+  const cldUrl = process.env.CLOUDINARY_URL;
+  if (cldUrl) {
+    try {
+      cloudinary.config({ secure: true });
+      return cloudinary;
+    } catch (err) {
+      console.warn('Failed to configure Cloudinary with CLOUDINARY_URL:', err);
+    }
+  }
+
   const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
   const apiKey = process.env.CLOUDINARY_API_KEY;
   const apiSecret = process.env.CLOUDINARY_API_SECRET;

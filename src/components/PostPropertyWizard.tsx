@@ -11,22 +11,26 @@ import {
   CreditCard,
   ShieldCheck,
   ChevronRight,
-  ChevronLeft
+  ChevronLeft,
+  Loader2,
+  ImageIcon
 } from 'lucide-react';
-import { Property, PropertyCategory, PropertyPurpose, PropertySubcategory, PostedBy } from '../types';
+import { Property, PropertyCategory, PropertyPurpose, PropertySubcategory, PostedBy, CloudinaryFile } from '../types';
 import { ALL_AMENITIES } from '../data/mockData';
-import { createPropertyListing } from '../services/api';
+import { createPropertyListing, uploadFile } from '../services/api';
 
 interface PostPropertyWizardProps {
   isOpen: boolean;
   onClose: () => void;
   onListingCreated: (newProp: Property) => void;
+  files?: CloudinaryFile[];
 }
 
 export const PostPropertyWizard: React.FC<PostPropertyWizardProps> = ({
   isOpen,
   onClose,
-  onListingCreated
+  onListingCreated,
+  files = []
 }) => {
   const [step, setStep] = useState<number>(1);
   const [submitting, setSubmitting] = useState(false);
@@ -59,6 +63,22 @@ export const PostPropertyWizard: React.FC<PostPropertyWizardProps> = ({
   const [imageUrl, setImageUrl] = useState(
     'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=1200&auto=format&fit=crop'
   );
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const uploaded = e.target.files;
+    if (!uploaded || uploaded.length === 0) return;
+    setUploadingImage(true);
+    try {
+      const cldFile = await uploadFile(uploaded[0], '/properties');
+      setImageUrl(cldFile.url);
+    } catch (err) {
+      console.error('Image upload error:', err);
+      alert('Failed to upload photo to Cloudinary');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -215,6 +235,62 @@ export const PostPropertyWizard: React.FC<PostPropertyWizardProps> = ({
                     <option value="commercial">Commercial Office / Retail</option>
                     <option value="plots">Plots & Land</option>
                   </select>
+                </div>
+              </div>
+
+              {/* Primary Property Photo Upload */}
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <label className="block text-xs font-bold text-slate-700">Primary Property Photo (Cloudinary Powered)</label>
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  <div className="w-full sm:w-40 h-28 bg-slate-100 rounded-2xl overflow-hidden border border-slate-200 shrink-0 relative flex items-center justify-center">
+                    {uploadingImage ? (
+                      <div className="flex flex-col items-center space-y-1 text-blue-600">
+                        <Loader2 className="w-6 h-6 animate-spin" />
+                        <span className="text-[10px] font-bold">Uploading...</span>
+                      </div>
+                    ) : imageUrl ? (
+                      <img src={imageUrl} alt="Property Preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <ImageIcon className="w-8 h-8 text-slate-400" />
+                    )}
+                  </div>
+
+                  <div className="flex-1 space-y-2 w-full">
+                    <label className={`w-full bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-800 font-bold px-4 py-2.5 rounded-xl flex items-center justify-center space-x-2 text-xs transition-all ${uploadingImage ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
+                      {uploadingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4 stroke-[2.5]" />}
+                      <span>{uploadingImage ? 'Uploading to Cloudinary...' : 'Upload Image File to Cloudinary'}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        disabled={uploadingImage}
+                        onChange={handleImageFileChange}
+                        className="hidden"
+                      />
+                    </label>
+
+                    {files.length > 0 && (
+                      <select
+                        value={imageUrl}
+                        onChange={(e) => {
+                          if (e.target.value) setImageUrl(e.target.value);
+                        }}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-[11px] font-bold text-blue-700 focus:outline-hidden"
+                      >
+                        <option value="">-- Or Pick Existing Photo from Cloudinary File Manager --</option>
+                        {files.filter(f => f.fileType === 'image' || f.fileType === 'floor_plan').map(f => (
+                          <option key={f.id} value={f.url}>{f.name} ({f.folder})</option>
+                        ))}
+                      </select>
+                    )}
+
+                    <input
+                      type="text"
+                      value={imageUrl}
+                      onChange={(e) => setImageUrl(e.target.value)}
+                      placeholder="Or paste image URL (https://...)"
+                      className="w-full border border-slate-200 rounded-xl px-3 py-1.5 text-[11px] font-mono text-slate-600 focus:outline-hidden"
+                    />
+                  </div>
                 </div>
               </div>
             </div>

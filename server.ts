@@ -4,16 +4,19 @@ import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
 import { getNeonSql, getCloudinary } from './src/services/serverIntegrations.js';
 import { INITIAL_PROPERTIES, BUILDER_PROJECTS, POPULAR_CITIES, LOCALITY_REVIEWS } from './src/data/mockData.js';
-import { Property, Lead, ChatMessage, LocalityReview } from './src/types/index.js';
+import { INITIAL_FILES } from './src/services/store.js';
+import { Property, Lead, ChatMessage, LocalityReview, CloudinaryFile } from './src/types/index.js';
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // In-memory data store initialized with initial mock datasets
 let propertiesStore: Property[] = [...INITIAL_PROPERTIES];
 let projectsStore = [...BUILDER_PROJECTS];
+let filesStore: CloudinaryFile[] = [...INITIAL_FILES];
 let leadsStore: Lead[] = [
   {
     id: 'lead-101',
@@ -148,6 +151,201 @@ app.post('/api/cloudinary/signature', (req, res) => {
       cloudName: process.env.CLOUDINARY_CLOUD_NAME,
       folder
     });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 1b. Get files list from Neon DB or Memory Store
+app.get('/api/files', async (req, res) => {
+  try {
+    const sql = getNeonSql();
+    if (sql) {
+      try {
+        await sql`
+          CREATE TABLE IF NOT EXISTS cloudinary_files (
+            id VARCHAR(255) PRIMARY KEY,
+            public_id VARCHAR(255),
+            name VARCHAR(255),
+            url TEXT NOT NULL,
+            format VARCHAR(50),
+            size_bytes BIGINT,
+            file_type VARCHAR(50),
+            folder VARCHAR(255),
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+          );
+        `;
+        const rows = await sql`SELECT * FROM cloudinary_files ORDER BY created_at DESC;`;
+        if (rows && rows.length > 0) {
+          const dbFiles: CloudinaryFile[] = rows.map((r: any) => ({
+            id: r.id,
+            publicId: r.public_id || r.id,
+            name: r.name,
+            url: r.url,
+            format: r.format || 'jpg',
+            sizeBytes: Number(r.size_bytes) || 1000000,
+            fileType: r.file_type || 'image',
+            folder: r.folder || '/uploads',
+            createdAt: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString()
+          }));
+          return res.json({ success: true, data: dbFiles });
+        }
+      } catch (dbErr) {
+        console.warn('[DB] Failed to query cloudinary_files from Neon DB:', dbErr);
+      }
+    }
+    res.json({ success: true, data: filesStore });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 1c. Upload file to Cloudinary and persist metadata to Neon DB
+app.post('/api/files/upload', async (req, res) => {
+  try {
+    const { fileData, name, folder, fileType } = req.body;
+    if (!fileData) {
+      return res.status(400).json({ success: false, message: 'fileData (base64 or URL) is required' });
+    }
+
+    const cld = getCloudinary();
+    let finalUrl = '';
+    let publicId = `uploads/${Date.now()}`;
+    let format = (name || 'image.png').split('.').pop() || 'png';
+    let sizeBytes = 1000000;
+    let width: number | undefined;
+    let height: number | undefined;
+
+    const cleanFolder = (folder || '/uploads').replace(/^\//, '');
+
+    if (cld) {
+      try {
+        const uploadRes = await cld.uploader.upload(fileData, {
+          folder: cleanFolder,
+          resource_type: 'auto'
+        });
+        finalUrl = uploadRes.secure_url;
+        publicId = uploadRes.public_id;
+        format = uploadRes.format || format;
+        sizeBytes = uploadRes.bytes || sizeBytes;
+        width = uploadRes.width;
+        height = uploadRes.height;
+      } catch (cldErr: any) {
+        console.error('[Cloudinary] Direct upload error:', cldErr?.message || cldErr);
+        finalUrl = fileData.startsWith('data:') ? fileData : `data:image/png;base64,${fileData}`;
+      }
+    } else {
+      console.warn('[Cloudinary] Cloudinary not configured. Using fallback URL storage.');
+      finalUrl = fileData.startsWith('data:') ? fileData : `data:image/png;base64,${fileData}`;
+    }
+
+    let detectedFileType = fileType;
+    if (!detectedFileType) {
+      if (format === 'mp4' || format === 'mov' || format === 'webm') detectedFileType = 'video';
+      else if (format === 'pdf') detectedFileType = 'pdf';
+      else if (format === 'svg') detectedFileType = 'icon';
+      else if (folder === '/floor-plans' || folder === 'floor-plans') detectedFileType = 'floor_plan';
+      else detectedFileType = 'image';
+    }
+
+    const newFile: CloudinaryFile = {
+      id: `cld-${Date.now()}`,
+      publicId,
+      name: name || `upload_${Date.now()}.${format}`,
+      url: finalUrl,
+      format,
+      sizeBytes,
+      fileType: detectedFileType,
+      folder: folder || '/uploads',
+      createdAt: new Date().toISOString(),
+      width,
+      height
+    };
+
+    filesStore.unshift(newFile);
+
+    // Persist to Neon DB if connected
+    const sql = getNeonSql();
+    if (sql) {
+      try {
+        await sql`
+          CREATE TABLE IF NOT EXISTS cloudinary_files (
+            id VARCHAR(255) PRIMARY KEY,
+            public_id VARCHAR(255),
+            name VARCHAR(255),
+            url TEXT NOT NULL,
+            format VARCHAR(50),
+            size_bytes BIGINT,
+            file_type VARCHAR(50),
+            folder VARCHAR(255),
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+          );
+        `;
+        await sql`
+          INSERT INTO cloudinary_files (id, public_id, name, url, format, size_bytes, file_type, folder, created_at)
+          VALUES (${newFile.id}, ${newFile.publicId}, ${newFile.name}, ${newFile.url}, ${newFile.format}, ${newFile.sizeBytes}, ${newFile.fileType}, ${newFile.folder}, ${newFile.createdAt});
+        `;
+      } catch (dbErr) {
+        console.warn('[DB] Failed to insert file to Neon DB:', dbErr);
+      }
+    }
+
+    res.status(201).json({ success: true, data: newFile });
+  } catch (err: any) {
+    console.error('[Upload API Error]:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 1d. Rename / Update File Metadata
+app.put('/api/files/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, folder } = req.body;
+
+    const fileIndex = filesStore.findIndex(f => f.id === id);
+    if (fileIndex !== -1) {
+      if (name) filesStore[fileIndex].name = name;
+      if (folder) filesStore[fileIndex].folder = folder;
+    }
+
+    const sql = getNeonSql();
+    if (sql) {
+      try {
+        if (name && folder) {
+          await sql`UPDATE cloudinary_files SET name = ${name}, folder = ${folder} WHERE id = ${id};`;
+        } else if (name) {
+          await sql`UPDATE cloudinary_files SET name = ${name} WHERE id = ${id};`;
+        } else if (folder) {
+          await sql`UPDATE cloudinary_files SET folder = ${folder} WHERE id = ${id};`;
+        }
+      } catch (dbErr) {
+        console.warn('[DB] Failed to update file in Neon DB:', dbErr);
+      }
+    }
+
+    res.json({ success: true, message: 'File updated successfully' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 1e. Delete File
+app.delete('/api/files/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    filesStore = filesStore.filter(f => f.id !== id);
+
+    const sql = getNeonSql();
+    if (sql) {
+      try {
+        await sql`DELETE FROM cloudinary_files WHERE id = ${id};`;
+      } catch (dbErr) {
+        console.warn('[DB] Failed to delete file from Neon DB:', dbErr);
+      }
+    }
+
+    res.json({ success: true, message: 'File deleted successfully' });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
