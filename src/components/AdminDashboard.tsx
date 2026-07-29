@@ -39,7 +39,13 @@ import {
   PhoneCall,
   Mail,
   Share2,
-  Filter
+  Filter,
+  Database,
+  Server,
+  RefreshCw,
+  Activity,
+  Cloud,
+  ShieldCheck
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -137,8 +143,63 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onSaveFooterConfig
 }) => {
   const [activeTab, setActiveTab] = useState<
-    'analytics' | 'properties' | 'audit' | 'files' | 'pages' | 'header_footer'
+    'analytics' | 'properties' | 'audit' | 'files' | 'pages' | 'header_footer' | 'db_diagnostics'
   >('analytics');
+
+  // Database & Cloudinary Diagnostics State
+  const [neonStatus, setNeonStatus] = useState<{
+    loading: boolean;
+    connected: boolean;
+    provider?: string;
+    serverTime?: string;
+    version?: string;
+    message?: string;
+    error?: string;
+  }>({ loading: false, connected: false });
+
+  const [cloudinaryStatus, setCloudinaryStatus] = useState<{
+    loading: boolean;
+    configured: boolean;
+    cloudName?: string | null;
+    apiKeyConfigured?: boolean;
+    message?: string;
+    error?: string;
+  }>({ loading: false, configured: false });
+
+  const [rawJsonResponse, setRawJsonResponse] = useState<string | null>(null);
+
+  const runDiagnostics = async () => {
+    setNeonStatus(prev => ({ ...prev, loading: true }));
+    setCloudinaryStatus(prev => ({ ...prev, loading: true }));
+    setRawJsonResponse(null);
+
+    let neonResData: any = null;
+    let cldResData: any = null;
+
+    try {
+      const resNeon = await fetch('/api/neon/status');
+      neonResData = await resNeon.json();
+      setNeonStatus({ loading: false, ...neonResData });
+    } catch (err: any) {
+      neonResData = { connected: false, error: err.message };
+      setNeonStatus({ loading: false, connected: false, error: err.message });
+    }
+
+    try {
+      const resCld = await fetch('/api/cloudinary/status');
+      cldResData = await resCld.json();
+      setCloudinaryStatus({ loading: false, ...cldResData });
+    } catch (err: any) {
+      cldResData = { configured: false, error: err.message };
+      setCloudinaryStatus({ loading: false, configured: false, error: err.message });
+    }
+
+    setRawJsonResponse(JSON.stringify({ neonPostgreSQL: neonResData, cloudinaryCDN: cldResData }, null, 2));
+  };
+
+  React.useEffect(() => {
+    runDiagnostics();
+  }, []);
 
   // Properties Tab local state
   const [propertySearch, setPropertySearch] = useState('');
@@ -312,6 +373,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
               <ChevronRight className="w-3.5 h-3.5 opacity-60" />
             </button>
+
+            <button
+              onClick={() => { setActiveTab('db_diagnostics'); setIsBuildingPage(false); runDiagnostics(); }}
+              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'db_diagnostics'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                  : 'text-slate-400 hover:bg-slate-900 hover:text-white'
+              }`}
+            >
+              <div className="flex items-center space-x-2.5">
+                <Database className="w-4 h-4 text-emerald-400" />
+                <span>7. DB Diagnostics</span>
+              </div>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center ${
+                neonStatus.connected ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-slate-800 text-slate-300'
+              }`}>
+                <span className={`w-1.5 h-1.5 rounded-full mr-1 ${neonStatus.connected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+                <span>Neon & Cld</span>
+              </span>
+            </button>
           </nav>
         </div>
 
@@ -319,15 +400,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         <div className="pt-6 border-t border-slate-800/80 space-y-2">
           <div className="flex items-center justify-between text-[11px] text-slate-400">
             <span>Database Status</span>
-            <span className="flex items-center text-emerald-400 font-bold">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 mr-1.5 animate-ping" />
-              Connected
+            <span className={`flex items-center font-bold text-[10px] ${neonStatus.connected ? 'text-emerald-400' : 'text-amber-400'}`}>
+              <span className={`w-2 h-2 rounded-full mr-1.5 ${neonStatus.connected ? 'bg-emerald-500 animate-ping' : 'bg-amber-500'}`} />
+              {neonStatus.connected ? 'Neon Live' : 'Setup Ready'}
             </span>
           </div>
           <div className="text-[10px] text-slate-500 space-y-0.5">
-            <p>Engine: Neon PostgreSQL</p>
-            <p>Storage: Cloudinary CDN</p>
+            <p className="flex justify-between">
+              <span>PostgreSQL:</span>
+              <span className={neonStatus.connected ? 'text-emerald-400 font-semibold' : 'text-slate-400'}>
+                {neonStatus.connected ? 'Connected' : 'Ready'}
+              </span>
+            </p>
+            <p className="flex justify-between">
+              <span>Cloudinary CDN:</span>
+              <span className={cloudinaryStatus.configured ? 'text-emerald-400 font-semibold' : 'text-slate-400'}>
+                {cloudinaryStatus.configured ? 'Active' : 'Ready'}
+              </span>
+            </p>
           </div>
+          <button
+            onClick={() => { setActiveTab('db_diagnostics'); setIsBuildingPage(false); runDiagnostics(); }}
+            className="w-full text-left text-[11px] font-extrabold text-blue-400 hover:text-blue-300 transition-colors flex items-center justify-between pt-1 cursor-pointer"
+          >
+            <span>Run DB Diagnostics</span>
+            <ChevronRight className="w-3 h-3" />
+          </button>
         </div>
       </aside>
 
@@ -1291,6 +1389,204 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   />
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 7: DATABASE & CLOUDINARY DIAGNOSTICS */}
+        {activeTab === 'db_diagnostics' && (
+          <div className="space-y-8 animate-in fade-in duration-300">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center space-x-3">
+                  <div className="p-2.5 bg-emerald-950/60 border border-emerald-800/50 rounded-2xl text-emerald-400">
+                    <Database className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-extrabold text-white">DB & Storage Diagnostics</h2>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Verify connection status, configuration parameters, and API health for Neon PostgreSQL & Cloudinary CDN.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={runDiagnostics}
+                disabled={neonStatus.loading || cloudinaryStatus.loading}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold px-5 py-2.5 rounded-xl shadow-lg text-xs cursor-pointer flex items-center justify-center space-x-2 transition-all disabled:opacity-50"
+              >
+                <RefreshCw className={`w-4 h-4 ${neonStatus.loading || cloudinaryStatus.loading ? 'animate-spin' : ''}`} />
+                <span>{neonStatus.loading || cloudinaryStatus.loading ? 'Testing Connections...' : 'Re-Run Diagnostics'}</span>
+              </button>
+            </div>
+
+            {/* STATUS SUMMARY CARDS */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* NEON POSTGRESQL CARD */}
+              <div className="bg-slate-800/80 border border-slate-700/60 rounded-3xl p-6 space-y-6 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between border-b border-slate-700/60 pb-4">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 rounded-2xl bg-cyan-950 border border-cyan-800/60 flex items-center justify-center text-cyan-400">
+                        <Database className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-extrabold text-white">Neon PostgreSQL</h3>
+                        <span className="text-[10px] text-slate-400">Serverless Relational Database</span>
+                      </div>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-xs font-black flex items-center space-x-1.5 ${
+                      neonStatus.connected
+                        ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                        : 'bg-amber-950 text-amber-400 border border-amber-800'
+                    }`}>
+                      <span className={`w-2 h-2 rounded-full ${neonStatus.connected ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'}`} />
+                      <span>{neonStatus.connected ? 'CONNECTED & LIVE' : 'CONFIGURATION READY'}</span>
+                    </span>
+                  </div>
+
+                  <div className="mt-6 space-y-3">
+                    <div className="flex items-center justify-between text-xs p-3 bg-slate-900/80 rounded-xl border border-slate-800">
+                      <span className="text-slate-400 font-bold">Engine Status</span>
+                      <span className="text-white font-mono font-bold">@neondatabase/serverless</span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs p-3 bg-slate-900/80 rounded-xl border border-slate-800">
+                      <span className="text-slate-400 font-bold">Connection Target</span>
+                      <span className="text-slate-200 font-mono text-[11px] font-semibold">
+                        {neonStatus.connected ? 'Neon Cloud Branch (SSL Mode)' : 'DATABASE_URL in .env.example'}
+                      </span>
+                    </div>
+
+                    {neonStatus.serverTime && (
+                      <div className="flex items-center justify-between text-xs p-3 bg-slate-900/80 rounded-xl border border-slate-800">
+                        <span className="text-slate-400 font-bold">PostgreSQL Server Time</span>
+                        <span className="text-emerald-400 font-mono text-[11px] font-bold">
+                          {new Date(neonStatus.serverTime).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+
+                    {neonStatus.version && (
+                      <div className="flex items-center justify-between text-xs p-3 bg-slate-900/80 rounded-xl border border-slate-800 overflow-hidden">
+                        <span className="text-slate-400 font-bold">PostgreSQL Version</span>
+                        <span className="text-slate-300 font-mono text-[10px] truncate max-w-[200px]" title={neonStatus.version}>
+                          {neonStatus.version}
+                        </span>
+                      </div>
+                    )}
+
+                    {neonStatus.message && (
+                      <div className="p-3 bg-amber-950/40 border border-amber-800/40 rounded-xl text-amber-300 text-xs leading-relaxed">
+                        <div className="font-bold flex items-center space-x-1.5 mb-1">
+                          <AlertCircle className="w-4 h-4 text-amber-400" />
+                          <span>Neon Setup Note</span>
+                        </div>
+                        {neonStatus.message}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-slate-700/60 text-[11px] text-slate-400 space-y-1">
+                  <div className="font-bold text-slate-300 mb-1">How Neon Integration Works:</div>
+                  <p>• Lazy initialisation in <code className="text-cyan-300">/src/services/serverIntegrations.ts</code>.</p>
+                  <p>• Server route <code className="text-cyan-300">/api/neon/status</code> executes direct PostgreSQL queries when key is present.</p>
+                </div>
+              </div>
+
+              {/* CLOUDINARY CDN CARD */}
+              <div className="bg-slate-800/80 border border-slate-700/60 rounded-3xl p-6 space-y-6 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between border-b border-slate-700/60 pb-4">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 rounded-2xl bg-purple-950 border border-purple-800/60 flex items-center justify-center text-purple-400">
+                        <Cloud className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-extrabold text-white">Cloudinary CDN</h3>
+                        <span className="text-[10px] text-slate-400">Media Asset Management & CDN</span>
+                      </div>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-xs font-black flex items-center space-x-1.5 ${
+                      cloudinaryStatus.configured
+                        ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                        : 'bg-amber-950 text-amber-400 border border-amber-800'
+                    }`}>
+                      <span className={`w-2 h-2 rounded-full ${cloudinaryStatus.configured ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'}`} />
+                      <span>{cloudinaryStatus.configured ? 'CONFIGURED & READY' : 'KEYS NEEDED'}</span>
+                    </span>
+                  </div>
+
+                  <div className="mt-6 space-y-3">
+                    <div className="flex items-center justify-between text-xs p-3 bg-slate-900/80 rounded-xl border border-slate-800">
+                      <span className="text-slate-400 font-bold">SDK Package</span>
+                      <span className="text-white font-mono font-bold">cloudinary (v2 API)</span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs p-3 bg-slate-900/80 rounded-xl border border-slate-800">
+                      <span className="text-slate-400 font-bold">Cloud Name</span>
+                      <span className="text-purple-300 font-mono text-[11px] font-bold">
+                        {cloudinaryStatus.cloudName || 'CLOUDINARY_CLOUD_NAME in .env'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs p-3 bg-slate-900/80 rounded-xl border border-slate-800">
+                      <span className="text-slate-400 font-bold">Upload Signature Endpoint</span>
+                      <span className="text-emerald-400 font-mono text-[11px] font-bold">
+                        /api/cloudinary/signature (Secure)
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs p-3 bg-slate-900/80 rounded-xl border border-slate-800">
+                      <span className="text-slate-400 font-bold">Managed File Assets</span>
+                      <span className="text-cyan-400 font-mono text-[11px] font-bold">
+                        {files.length} active files in manager
+                      </span>
+                    </div>
+
+                    {cloudinaryStatus.message && (
+                      <div className="p-3 bg-amber-950/40 border border-amber-800/40 rounded-xl text-amber-300 text-xs leading-relaxed">
+                        <div className="font-bold flex items-center space-x-1.5 mb-1">
+                          <AlertCircle className="w-4 h-4 text-amber-400" />
+                          <span>Cloudinary Setup Note</span>
+                        </div>
+                        {cloudinaryStatus.message}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-slate-700/60 text-[11px] text-slate-400 space-y-1">
+                  <div className="font-bold text-slate-300 mb-1">How Cloudinary Integration Works:</div>
+                  <p>• API keys are stored strictly server-side in <code className="text-purple-300">server.ts</code>.</p>
+                  <p>• Direct image upload signatures are calculated using <code className="text-purple-300">api_sign_request</code>.</p>
+                </div>
+              </div>
+            </div>
+
+            {/* LIVE API RESPONSE CONSOLE */}
+            <div className="bg-slate-800/80 border border-slate-700/60 rounded-3xl p-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-700/60 pb-3">
+                <div className="flex items-center space-x-2.5">
+                  <Server className="w-5 h-5 text-blue-400" />
+                  <h3 className="text-base font-extrabold text-white">Live System Diagnostics Response Payload</h3>
+                </div>
+                <span className="text-[10px] bg-slate-950 text-slate-400 px-3 py-1 rounded-full border border-slate-800 font-mono">
+                  GET /api/neon/status & GET /api/cloudinary/status
+                </span>
+              </div>
+
+              {rawJsonResponse ? (
+                <pre className="bg-slate-950 p-4 rounded-2xl border border-slate-800 text-xs font-mono text-emerald-400 overflow-x-auto max-h-80">
+                  {rawJsonResponse}
+                </pre>
+              ) : (
+                <div className="p-8 text-center text-xs text-slate-400 bg-slate-950/50 rounded-2xl border border-slate-800">
+                  Click <span className="text-blue-400 font-bold">"Re-Run Diagnostics"</span> above to fetch live server payloads.
+                </div>
+              )}
             </div>
           </div>
         )}
