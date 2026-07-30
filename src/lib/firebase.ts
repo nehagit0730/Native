@@ -25,14 +25,18 @@ export const db = firebaseConfig.firestoreDatabaseId
   ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
   : getFirestore(app);
 
-// Google Sign In (Popup with Redirect fallback for iframe constraints)
+// Google Sign In (Popup with Redirect fallback for iframe & domain constraints)
 export const signInWithGoogle = async (): Promise<User> => {
   try {
     const result = await signInWithPopup(auth, googleProvider);
     return result.user;
   } catch (error: any) {
-    console.warn('Google popup error, attempting redirect fallback:', error);
-    if (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
+    console.warn('Google popup error:', error?.code, error?.message);
+    if (
+      error.code === 'auth/popup-blocked' ||
+      error.code === 'auth/popup-closed-by-user' ||
+      error.code === 'auth/cancelled-popup-request'
+    ) {
       try {
         await signInWithRedirect(auth, googleProvider);
         throw new Error('Redirecting to Google Sign-In...');

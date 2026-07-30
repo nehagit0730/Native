@@ -84,10 +84,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const handleDuplicateProperty = (id: string) => {
     const target = properties.find((p) => p.id === id);
     if (!target) return;
+    const baseSlug = (target.slug || target.id || 'property').replace(/^\/+/, '');
+    const newSlug = `${baseSlug}-1`;
     const clone: Property = {
       ...target,
       id: `prop-${Date.now()}`,
       title: `${target.title} (Copy)`,
+      slug: newSlug,
       viewsCount: 0,
       createdAt: new Date().toISOString()
     };
@@ -133,11 +136,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const handleDuplicatePage = (id: string) => {
     const target = pages.find((p) => p.id === id);
     if (!target) return;
+    const baseSlug = (target.slug || 'page').replace(/^\/+/, '');
+    const newSlug = `${baseSlug}-1`;
     const clone: WebsitePage = {
       ...target,
       id: `page-${Date.now()}`,
       title: `${target.title} (Copy)`,
-      slug: `${target.slug}-copy`,
+      slug: newSlug,
       updatedAt: new Date().toISOString()
     };
     setPages([...pages, clone]);

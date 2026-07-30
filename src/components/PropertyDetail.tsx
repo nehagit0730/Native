@@ -24,7 +24,13 @@ import {
   Train,
   UtensilsCrossed,
   ShoppingBag,
-  Star
+  Star,
+  Copy,
+  Check,
+  ExternalLink,
+  Send,
+  Mail,
+  Globe
 } from 'lucide-react';
 import { Property } from '../types';
 import { PropertyCard } from './PropertyCard';
@@ -66,6 +72,8 @@ export const PropertyDetail: React.FC<PropertyDetailProps> = ({
 }) => {
   const [selectedImage, setSelectedImage] = useState<string>('');
   const [showVisitModal, setShowVisitModal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [buyerName, setBuyerName] = useState('');
   const [buyerPhone, setBuyerPhone] = useState('');
   const [visitDate, setVisitDate] = useState('');
@@ -77,6 +85,42 @@ export const PropertyDetail: React.FC<PropertyDetailProps> = ({
   const similarProps = allProperties.filter(
     (p) => p.id !== property.id && (p.city === property.city || p.bedrooms === property.bedrooms)
   ).slice(0, 3);
+
+  const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/?property=${property.id}` : '';
+  const shareText = `Check out this property: ${property.title} in ${property.city} for ${property.priceFormatted} on Shine Native Real Estate!`;
+
+  const handleCopyLink = async () => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = shareUrl;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch (err) {
+      console.error('Failed to copy link:', err);
+    }
+  };
+
+  const handleNativeShare = async () => {
+    if (typeof navigator !== 'undefined' && 'share' in navigator) {
+      try {
+        await navigator.share({
+          title: property.title,
+          text: shareText,
+          url: shareUrl,
+        });
+      } catch (err) {
+        console.log('Share canceled or failed:', err);
+      }
+    }
+  };
 
   const handleInquirySubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,16 +150,26 @@ export const PropertyDetail: React.FC<PropertyDetailProps> = ({
             <span className="bg-blue-600 text-white text-[10px] font-extrabold px-2.5 py-0.5 rounded-md uppercase">
               {property.purpose === 'rent' ? 'For Rent' : 'For Sale'}
             </span>
-            <span className="text-xs text-slate-300 font-semibold truncate max-w-md">
+            <span className="text-xs text-slate-300 font-semibold truncate max-w-xs sm:max-w-md">
               {property.title}
             </span>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setShowShareModal(true)}
+              className="bg-blue-600/90 hover:bg-blue-600 text-white transition-all cursor-pointer flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold border border-blue-500/50 shadow-xs"
+              title="Share Property Link & Social Media"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              <span>Share Property</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Scrollable Body */}
@@ -224,6 +278,9 @@ export const PropertyDetail: React.FC<PropertyDetailProps> = ({
                     <Calculator className="w-3.5 h-3.5 mr-1" /> Calculate EMI
                   </button>
                   <div className="flex items-center space-x-3">
+                    <button onClick={() => setShowShareModal(true)} className="hover:text-blue-600 cursor-pointer flex items-center text-slate-600 font-medium">
+                      <Share2 className="w-4 h-4 text-blue-600" />
+                    </button>
                     <button onClick={() => onToggleSave(property.id)} className="hover:text-rose-500 cursor-pointer">
                       <Heart className={`w-4 h-4 ${isSaved ? 'fill-rose-500 text-rose-500' : ''}`} />
                     </button>
@@ -392,6 +449,163 @@ export const PropertyDetail: React.FC<PropertyDetailProps> = ({
                 Submit Inquiry Request
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Share Property Modal */}
+      {showShareModal && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-5 border border-slate-100">
+            {/* Modal Header */}
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div className="flex items-center space-x-2">
+                <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                  <Share2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-slate-900">Share Property</h3>
+                  <p className="text-[11px] text-slate-500 font-medium">Spread the word or save for later</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowShareModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Property Snippet Preview */}
+            <div className="flex items-center space-x-3 bg-slate-50 p-3 rounded-2xl border border-slate-200/80">
+              <img
+                src={property.images[0]}
+                alt={property.title}
+                className="w-14 h-14 rounded-xl object-cover shrink-0"
+              />
+              <div className="overflow-hidden text-left">
+                <h4 className="font-extrabold text-xs text-slate-900 truncate">{property.title}</h4>
+                <p className="text-[11px] text-blue-600 font-bold mt-0.5">{property.priceFormatted}</p>
+                <p className="text-[10px] text-slate-500 truncate mt-0.5 flex items-center">
+                  <MapPin className="w-3 h-3 mr-0.5 text-slate-400 inline shrink-0" />
+                  {property.address}
+                </p>
+              </div>
+            </div>
+
+            {/* Copy Link Section */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-700">Property Web Link</label>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={shareUrl}
+                  className="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-xs text-slate-700 font-mono focus:outline-none select-all"
+                />
+                <button
+                  onClick={handleCopyLink}
+                  className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center space-x-1.5 shadow-xs transition-all cursor-pointer ${
+                    copied
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-blue-600 hover:bg-blue-700 text-white'
+                  }`}
+                >
+                  {copied ? (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4" />
+                      <span>Copy</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Native Web Share Button (if supported) */}
+            {typeof navigator !== 'undefined' && 'share' in navigator && (
+              <button
+                onClick={handleNativeShare}
+                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs py-2.5 rounded-xl shadow-xs transition-all flex items-center justify-center space-x-2 cursor-pointer"
+              >
+                <ExternalLink className="w-4 h-4" />
+                <span>Share via System / Native Apps</span>
+              </button>
+            )}
+
+            {/* Social Sharing Grid */}
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-slate-700">Share to Social Media</label>
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                {/* WhatsApp */}
+                <a
+                  href={`https://api.whatsapp.com/send?text=${encodeURIComponent(shareText + ' ' + shareUrl)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex flex-col items-center justify-center p-3 rounded-2xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition-all font-bold group"
+                >
+                  <MessageCircle className="w-5 h-5 text-emerald-600 mb-1 group-hover:scale-110 transition-transform" />
+                  <span>WhatsApp</span>
+                </a>
+
+                {/* Facebook */}
+                <a
+                  href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex flex-col items-center justify-center p-3 rounded-2xl bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 transition-all font-bold group"
+                >
+                  <Globe className="w-5 h-5 text-blue-600 mb-1 group-hover:scale-110 transition-transform" />
+                  <span>Facebook</span>
+                </a>
+
+                {/* Twitter / X */}
+                <a
+                  href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-900 border border-slate-300 transition-all font-bold group"
+                >
+                  <Send className="w-5 h-5 text-slate-800 mb-1 group-hover:scale-110 transition-transform" />
+                  <span>Twitter / X</span>
+                </a>
+
+                {/* LinkedIn */}
+                <a
+                  href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex flex-col items-center justify-center p-3 rounded-2xl bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 transition-all font-bold group"
+                >
+                  <Building className="w-5 h-5 text-sky-600 mb-1 group-hover:scale-110 transition-transform" />
+                  <span>LinkedIn</span>
+                </a>
+
+                {/* Telegram */}
+                <a
+                  href={`https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareText)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex flex-col items-center justify-center p-3 rounded-2xl bg-cyan-50 hover:bg-cyan-100 text-cyan-800 border border-cyan-200 transition-all font-bold group"
+                >
+                  <Send className="w-5 h-5 text-cyan-600 mb-1 group-hover:scale-110 transition-transform" />
+                  <span>Telegram</span>
+                </a>
+
+                {/* Email */}
+                <a
+                  href={`mailto:?subject=${encodeURIComponent(property.title)}&body=${encodeURIComponent(shareText + '\n\n' + shareUrl)}`}
+                  className="flex flex-col items-center justify-center p-3 rounded-2xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 transition-all font-bold group"
+                >
+                  <Mail className="w-5 h-5 text-amber-600 mb-1 group-hover:scale-110 transition-transform" />
+                  <span>Email</span>
+                </a>
+              </div>
+            </div>
           </div>
         </div>
       )}

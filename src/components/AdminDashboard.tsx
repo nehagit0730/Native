@@ -777,10 +777,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               <button
                                 onClick={() => onPreviewProperty(prop)}
                                 className="p-2 bg-slate-700/50 hover:bg-slate-700 text-slate-200 rounded-lg transition-colors cursor-pointer"
-                                title="Preview Listing"
+                                title="Quick View Listing"
                               >
                                 <Eye className="w-3.5 h-3.5" />
                               </button>
+                              <a
+                                href={`/properties/${prop.slug || prop.id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-2 bg-slate-700/50 hover:bg-slate-700 text-emerald-400 rounded-lg transition-colors cursor-pointer inline-flex items-center justify-center"
+                                title="Open Property Page in New Tab"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                              </a>
                               <button
                                 onClick={() => onDuplicateProperty(prop.id)}
                                 className="p-2 bg-slate-700/50 hover:bg-slate-700 text-blue-400 rounded-lg transition-colors cursor-pointer"
@@ -1168,16 +1177,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </button>
 
                         <div className="flex items-center space-x-2">
+                          <a
+                            href={`/pages/${page.slug.replace(/^\/+/, '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1.5 bg-slate-700 hover:bg-slate-600 text-emerald-400 rounded-lg cursor-pointer flex items-center justify-center transition-colors"
+                            title="Preview Page in New Tab"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
                           <button
                             onClick={() => onDuplicatePage(page.id)}
-                            className="p-1.5 bg-slate-700 hover:bg-slate-600 text-blue-300 rounded-lg cursor-pointer"
+                            className="p-1.5 bg-slate-700 hover:bg-slate-600 text-blue-300 rounded-lg cursor-pointer transition-colors"
                             title="Duplicate Page"
                           >
                             <Copy className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => onDeletePage(page.id)}
-                            className="p-1.5 bg-red-950/40 hover:bg-red-900 text-red-400 rounded-lg cursor-pointer"
+                            className="p-1.5 bg-red-950/40 hover:bg-red-900 text-red-400 rounded-lg cursor-pointer transition-colors"
                             title="Delete Page"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -1207,18 +1225,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => {
-                      if (editingPage) {
-                        onSavePage(editingPage);
-                        setIsBuildingPage(false);
-                      }
-                    }}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-6 py-2.5 rounded-xl shadow-lg text-xs cursor-pointer flex items-center space-x-2"
-                  >
-                    <Save className="w-4 h-4" />
-                    <span>Save Page Layout</span>
-                  </button>
+                  <div className="flex items-center space-x-3">
+                    {editingPage && (
+                      <a
+                        href={`/pages/${editingPage.slug.replace(/^\/+/, '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 font-extrabold px-4 py-2.5 rounded-xl text-xs cursor-pointer flex items-center space-x-2 transition-all shadow-md"
+                        title="Preview Page in New Tab"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        <span>Preview in New Tab</span>
+                      </a>
+                    )}
+                    <button
+                      onClick={() => {
+                        if (editingPage) {
+                          onSavePage(editingPage);
+                          setIsBuildingPage(false);
+                        }
+                      }}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-6 py-2.5 rounded-xl shadow-lg text-xs cursor-pointer flex items-center space-x-2"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>Save Page Layout</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Builder Split Layout */}

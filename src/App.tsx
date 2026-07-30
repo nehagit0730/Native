@@ -98,43 +98,11 @@ export default function App() {
   });
 
   const [googleUserSessions, setGoogleUserSessions] = useState<Record<string, GoogleAuthUser | null>>(() => {
-    const defaultSessions: Record<string, GoogleAuthUser> = {
-      buyer: {
-        email: 'rahul.buyer@gmail.com',
-        name: 'Rahul Sharma',
-        picture: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-        role: 'buyer',
-        isVerified: true,
-        loggedInAt: new Date().toISOString(),
-        authMethod: 'google'
-      },
-      owner: {
-        email: 'sunil.owner@gmail.com',
-        name: 'Sunil Mehta',
-        picture: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
-        role: 'owner',
-        isVerified: true,
-        loggedInAt: new Date().toISOString(),
-        authMethod: 'google'
-      },
-      broker: {
-        email: 'apex.broker@gmail.com',
-        name: 'Anil Verma (Apex Realty)',
-        picture: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80',
-        role: 'broker',
-        isVerified: true,
-        loggedInAt: new Date().toISOString(),
-        authMethod: 'google'
-      },
-      builder: {
-        email: 'builder.prestige@gmail.com',
-        name: 'Prestige Developers Team',
-        picture: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=150&q=80',
-        role: 'builder',
-        isVerified: true,
-        loggedInAt: new Date().toISOString(),
-        authMethod: 'google'
-      }
+    const emptySessions: Record<string, GoogleAuthUser | null> = {
+      buyer: null,
+      owner: null,
+      broker: null,
+      builder: null
     };
 
     const stored = localStorage.getItem('google_user_sessions');
@@ -143,17 +111,17 @@ export default function App() {
         const parsed = JSON.parse(stored);
         if (parsed && typeof parsed === 'object') {
           return {
-            buyer: parsed.buyer ? { ...defaultSessions.buyer, ...parsed.buyer } : defaultSessions.buyer,
-            owner: parsed.owner ? { ...defaultSessions.owner, ...parsed.owner } : defaultSessions.owner,
-            broker: parsed.broker ? { ...defaultSessions.broker, ...parsed.broker } : defaultSessions.broker,
-            builder: parsed.builder ? { ...defaultSessions.builder, ...parsed.builder } : defaultSessions.builder,
+            buyer: parsed.buyer || null,
+            owner: parsed.owner || null,
+            broker: parsed.broker || null,
+            builder: parsed.builder || null
           };
         }
       } catch (e) {
-        console.error('Error parsing stored Google sessions:', e);
+        console.error('Error parsing stored user sessions:', e);
       }
     }
-    return defaultSessions;
+    return emptySessions;
   });
 
   useEffect(() => {
@@ -366,7 +334,14 @@ export default function App() {
   const handleDuplicateProperty = (id: string) => {
     const prop = properties.find(p => p.id === id);
     if (prop) {
-      const copy = { ...prop, id: `prop-copy-${Date.now()}`, title: `${prop.title} (Copy)` };
+      const baseSlug = (prop.slug || prop.id || 'property').replace(/^\/+/, '');
+      const newSlug = `${baseSlug}-1`;
+      const copy = {
+        ...prop,
+        id: `prop-copy-${Date.now()}`,
+        title: `${prop.title} (Copy)`,
+        slug: newSlug
+      };
       setProperties([copy, ...properties]);
     }
   };
@@ -412,11 +387,14 @@ export default function App() {
   const handleDuplicatePage = (id: string) => {
     const pg = pages.find(p => p.id === id);
     if (pg) {
+      const baseSlug = (pg.slug || 'page').replace(/^\/+/, '');
+      const newSlug = `${baseSlug}-1`;
       const copy = {
         ...pg,
         id: `page-${Date.now()}`,
         title: `${pg.title} (Copy)`,
-        slug: `${pg.slug}-copy`
+        slug: newSlug,
+        updatedAt: new Date().toISOString()
       };
       setPages([...pages, copy]);
     }
