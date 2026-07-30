@@ -324,3 +324,13 @@ export interface PropertyAlert {
   active: boolean;
 }
 
+export interface GoogleAuthUser {
+  email: string;
+  name: string;
+  picture: string;
+  role: Role | 'admin';
+  isVerified: boolean;
+  loggedInAt: string;
+  authMethod: 'google';
+}
+

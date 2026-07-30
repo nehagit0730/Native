@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Role, Property, CloudinaryFile, WebsitePage, HeaderConfig, FooterConfig } from '../types';
+import { Role, Property, CloudinaryFile, WebsitePage, HeaderConfig, FooterConfig, GoogleAuthUser } from '../types';
 import { AdminDashboard } from './AdminDashboard';
 import { ClientDashboard } from './ClientDashboard';
 import {
@@ -15,6 +15,9 @@ interface DashboardProps {
   onRoleChange?: (role: Role) => void;
   properties: Property[];
   savedProperties: Property[];
+  googleUser?: GoogleAuthUser | null;
+  onOpenGoogleAuth?: (role?: Role | 'admin', mode?: 'login' | 'signup') => void;
+  onSignOutGoogle?: () => void;
   onSelectProperty: (property: Property) => void;
   onOpenPostProperty: () => void;
   onUpdateProperties?: (props: Property[]) => void;
@@ -25,10 +28,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onRoleChange = () => {},
   properties,
   savedProperties,
+  googleUser,
+  onOpenGoogleAuth,
+  onSignOutGoogle,
   onSelectProperty,
   onOpenPostProperty,
   onUpdateProperties = (_props: Property[]) => {}
 }) => {
+
   // Store States for Admin & Client functionality
   const [auditProperties, setAuditProperties] = useState<Property[]>(INITIAL_AUDIT_PROPERTIES);
   const [files, setFiles] = useState<CloudinaryFile[]>(INITIAL_FILES);
@@ -172,6 +179,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
       onRoleChange={onRoleChange}
       properties={properties}
       savedProperties={savedProperties}
+      googleUser={googleUser}
+      onOpenGoogleAuth={onOpenGoogleAuth}
+      onSignOutGoogle={onSignOutGoogle}
       onSelectProperty={onSelectProperty}
       onOpenPostProperty={onOpenPostProperty}
       onSubmitPropertyForAudit={(newProp) => {

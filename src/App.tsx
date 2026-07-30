@@ -21,11 +21,13 @@ import {
   WebsitePage, 
   CloudinaryFile, 
   HeaderConfig, 
-  FooterConfig 
+  FooterConfig,
+  GoogleAuthUser 
 } from './types';
 import { fetchProperties, fetchBuilderProjects, submitLeadInquiry, fetchFiles, deleteFileApi, renameFileApi } from './services/api';
 import { POPULAR_CITIES, MOCK_BLOGS, LOCALITY_REVIEWS } from './data/mockData';
 import { INITIAL_PAGES, INITIAL_FILES } from './services/store';
+import { onAuthChange, logoutFirebase } from './lib/firebase';
 
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
@@ -87,14 +89,107 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('isAdminAuthenticated', String(isAdminAuthenticated));
   }, [isAdminAuthenticated]);
+
   const [authenticatedRoles, setAuthenticatedRoles] = useState<Record<Role, boolean>>({
     buyer: true,
     owner: true,
     broker: true,
     builder: true
   });
+
+  const [googleUserSessions, setGoogleUserSessions] = useState<Record<string, GoogleAuthUser | null>>(() => {
+    const stored = localStorage.getItem('google_user_sessions');
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch (e) {
+        console.error('Error parsing stored Google sessions:', e);
+      }
+    }
+    return {
+      buyer: {
+        email: 'rahul.buyer@gmail.com',
+        name: 'Rahul Sharma',
+        picture: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+        role: 'buyer',
+        isVerified: true,
+        loggedInAt: new Date().toISOString(),
+        authMethod: 'google'
+      },
+      owner: {
+        email: 'sunil.owner@gmail.com',
+        name: 'Sunil Mehta',
+        picture: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
+        role: 'owner',
+        isVerified: true,
+        loggedInAt: new Date().toISOString(),
+        authMethod: 'google'
+      },
+      broker: {
+        email: 'apex.broker@gmail.com',
+        name: 'Anil Verma (Apex Realty)',
+        picture: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80',
+        role: 'broker',
+        isVerified: true,
+        loggedInAt: new Date().toISOString(),
+        authMethod: 'google'
+      },
+      builder: {
+        email: 'builder.prestige@gmail.com',
+        name: 'Prestige Developers Team',
+        picture: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=150&q=80',
+        role: 'builder',
+        isVerified: true,
+        loggedInAt: new Date().toISOString(),
+        authMethod: 'google'
+      }
+    };
+  });
+
+  useEffect(() => {
+    localStorage.setItem('google_user_sessions', JSON.stringify(googleUserSessions));
+  }, [googleUserSessions]);
+
+  useEffect(() => {
+    const unsubscribe = onAuthChange((fbUser) => {
+      if (fbUser) {
+        setGoogleUserSessions(prev => ({
+          ...prev,
+          [currentRole]: {
+            email: fbUser.email || 'user@firebase.com',
+            name: fbUser.displayName || fbUser.email?.split('@')[0] || 'Firebase User',
+            picture: fbUser.photoURL || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+            role: currentRole,
+            isVerified: true,
+            loggedInAt: new Date().toISOString(),
+            authMethod: 'google'
+          }
+        }));
+      }
+    });
+    return () => unsubscribe();
+  }, [currentRole]);
+
   const [authModalOpen, setAuthModalOpen] = useState<boolean>(false);
-  const [authTargetRole, setAuthTargetRole] = useState<Role | 'admin'>('admin');
+  const [authTargetRole, setAuthTargetRole] = useState<Role | 'admin'>('buyer');
+  const [authModalMode, setAuthModalMode] = useState<'login' | 'signup'>('login');
+
+  const handleOpenGoogleAuth = (role?: Role | 'admin', mode?: 'login' | 'signup') => {
+    setAuthTargetRole(role || (currentRole === 'admin' ? 'buyer' : currentRole));
+    setAuthModalMode(mode || 'login');
+    setAuthModalOpen(true);
+  };
+
+  const handleSignOutGoogle = () => {
+    logoutFirebase().catch(err => console.error('Signout error:', err));
+    setGoogleUserSessions(prev => ({
+      ...prev,
+      [currentRole]: null
+    }));
+  };
+
+  const currentGoogleUser = googleUserSessions[currentRole] || null;
+
 
   // Modals & Drawers
   const [showAISearch, setShowAISearch] = useState(false);
@@ -210,7 +305,21 @@ export default function App() {
   };
 
   // Auth completion handler
-  const handleAuthenticated = (role: Role | 'admin') => {
+  const handleAuthenticated = (role: Role | 'admin', userEmail?: string, userName?: string, userPicture?: string) => {
+    const email = userEmail || `${role}_user@gmail.com`;
+    const name = userName || `Verified ${role.toUpperCase()} User`;
+    const picture = userPicture || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80';
+
+    const updatedUser: GoogleAuthUser = {
+      email,
+      name,
+      picture,
+      role,
+      isVerified: true,
+      loggedInAt: new Date().toISOString(),
+      authMethod: 'google'
+    };
+
     if (role === 'admin') {
       setIsAdminAuthenticated(true);
       setCurrentRole('admin');
@@ -218,6 +327,11 @@ export default function App() {
       setAuthenticatedRoles(prev => ({ ...prev, [role]: true }));
       setCurrentRole(role);
     }
+
+    setGoogleUserSessions(prev => ({
+      ...prev,
+      [role]: updatedUser
+    }));
   };
 
   // Admin CRUD Handlers
@@ -364,6 +478,9 @@ export default function App() {
         }}
         savedCount={savedIds.length}
         compareCount={comparedIds.length}
+        googleUser={currentGoogleUser}
+        onOpenGoogleAuth={handleOpenGoogleAuth}
+        onSignOutGoogle={handleSignOutGoogle}
         onOpenWishlist={() => navigate('/buyer-dashboard')}
         onOpenCompare={() => {
           if (comparedIds.length === 0) alert('Add properties to compare first using the scale icon on cards.');
@@ -459,6 +576,9 @@ export default function App() {
             }}
             properties={properties}
             savedProperties={savedPropertyList}
+            googleUser={currentGoogleUser}
+            onOpenGoogleAuth={handleOpenGoogleAuth}
+            onSignOutGoogle={handleSignOutGoogle}
             onSelectProperty={(p) => setSelectedProperty(p)}
             onOpenPostProperty={() => navigate('/post-property')}
             onUpdateProperties={setProperties}
@@ -702,6 +822,7 @@ export default function App() {
         isOpen={authModalOpen}
         onClose={() => setAuthModalOpen(false)}
         targetRole={authTargetRole}
+        initialMode={authModalMode}
         onAuthenticated={handleAuthenticated}
       />
 
