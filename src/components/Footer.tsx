@@ -167,7 +167,15 @@ export const Footer: React.FC<FooterProps> = ({ onSelectCity, onNavigateCategory
             <span className="hover:text-slate-400 cursor-pointer">Privacy Policy</span>
             <span className="hover:text-slate-400 cursor-pointer">Terms of Service</span>
             <span className="hover:text-slate-400 cursor-pointer">RERA Guidelines</span>
-            <span className="hover:text-slate-400 cursor-pointer">Site Map</span>
+            <button
+              onClick={() => {
+                localStorage.clear();
+                window.location.reload();
+              }}
+              className="text-amber-400 hover:text-amber-300 font-semibold cursor-pointer transition-all"
+            >
+              Clear Cache / Reset Storage
+            </button>
           </div>
         </div>
       </div>

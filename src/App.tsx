@@ -98,15 +98,7 @@ export default function App() {
   });
 
   const [googleUserSessions, setGoogleUserSessions] = useState<Record<string, GoogleAuthUser | null>>(() => {
-    const stored = localStorage.getItem('google_user_sessions');
-    if (stored) {
-      try {
-        return JSON.parse(stored);
-      } catch (e) {
-        console.error('Error parsing stored Google sessions:', e);
-      }
-    }
-    return {
+    const defaultSessions: Record<string, GoogleAuthUser> = {
       buyer: {
         email: 'rahul.buyer@gmail.com',
         name: 'Rahul Sharma',
@@ -144,6 +136,24 @@ export default function App() {
         authMethod: 'google'
       }
     };
+
+    const stored = localStorage.getItem('google_user_sessions');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed === 'object') {
+          return {
+            buyer: parsed.buyer ? { ...defaultSessions.buyer, ...parsed.buyer } : defaultSessions.buyer,
+            owner: parsed.owner ? { ...defaultSessions.owner, ...parsed.owner } : defaultSessions.owner,
+            broker: parsed.broker ? { ...defaultSessions.broker, ...parsed.broker } : defaultSessions.broker,
+            builder: parsed.builder ? { ...defaultSessions.builder, ...parsed.builder } : defaultSessions.builder,
+          };
+        }
+      } catch (e) {
+        console.error('Error parsing stored Google sessions:', e);
+      }
+    }
+    return defaultSessions;
   });
 
   useEffect(() => {

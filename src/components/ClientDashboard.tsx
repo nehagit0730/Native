@@ -126,8 +126,11 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <div className="flex items-center space-x-4">
                 <img
-                  src={googleUser.picture}
-                  alt={googleUser.name}
+                  src={googleUser.picture || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'}
+                  alt={googleUser.name || 'User'}
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80';
+                  }}
                   className="w-12 h-12 rounded-full object-cover border-2 border-blue-500 shadow-sm shrink-0"
                 />
                 <div>
@@ -136,10 +139,10 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                       <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                       <span>Google SSO Active</span>
                     </span>
-                    <span className="text-slate-400 text-xs font-semibold">• {currentRole.toUpperCase()} PORTAL</span>
+                    <span className="text-slate-400 text-xs font-semibold">• {(currentRole || 'user').toUpperCase()} PORTAL</span>
                   </div>
                   <h3 className="text-sm font-extrabold text-slate-900 mt-1">
-                    Logged in as <span className="text-blue-600">{googleUser.name}</span> ({googleUser.email})
+                    Logged in as <span className="text-blue-600">{googleUser.name || 'User'}</span> ({googleUser.email || 'user@shinenative.com'})
                   </h3>
                   <p className="text-xs text-slate-500">
                     {currentRole === 'buyer' && 'Saved properties, compare history & price alerts synced to your Google account.'}

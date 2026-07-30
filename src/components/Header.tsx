@@ -270,16 +270,19 @@ export const Header: React.FC<HeaderProps> = ({
                 className="flex items-center space-x-2 bg-slate-100 hover:bg-slate-200 border border-slate-200/80 rounded-xl px-2.5 py-1.5 transition-all cursor-pointer"
               >
                 <img
-                  src={googleUser.picture}
-                  alt={googleUser.name}
-                  className="w-6 h-6 rounded-full object-cover border border-blue-500"
+                  src={googleUser.picture || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'}
+                  alt={googleUser.name || 'User'}
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80';
+                  }}
+                  className="w-6 h-6 rounded-full object-cover border border-blue-500 shrink-0"
                 />
                 <div className="hidden md:block text-left">
                   <span className="block text-[11px] font-extrabold text-slate-800 leading-tight">
-                    {googleUser.name}
+                    {googleUser.name || 'User'}
                   </span>
                   <span className="block text-[9px] font-bold text-blue-600 uppercase">
-                    {googleUser.role} Portal
+                    {(googleUser.role || currentRole).toUpperCase()} Portal
                   </span>
                 </div>
                 <ChevronDown className="w-3 h-3 text-slate-400" />
@@ -289,13 +292,16 @@ export const Header: React.FC<HeaderProps> = ({
                 <div className="absolute right-0 mt-2 w-64 bg-white text-slate-800 rounded-2xl shadow-2xl border border-slate-200 p-3 z-50 animate-in fade-in zoom-in-95 duration-150 space-y-3">
                   <div className="flex items-center space-x-3 p-2 bg-slate-50 rounded-xl border border-slate-100">
                     <img
-                      src={googleUser.picture}
-                      alt={googleUser.name}
-                      className="w-10 h-10 rounded-full object-cover border-2 border-blue-500"
+                      src={googleUser.picture || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'}
+                      alt={googleUser.name || 'User'}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80';
+                      }}
+                      className="w-10 h-10 rounded-full object-cover border-2 border-blue-500 shrink-0"
                     />
                     <div className="text-left overflow-hidden">
-                      <h4 className="font-extrabold text-xs text-slate-900 truncate">{googleUser.name}</h4>
-                      <p className="text-[10px] text-slate-500 truncate">{googleUser.email}</p>
+                      <h4 className="font-extrabold text-xs text-slate-900 truncate">{googleUser.name || 'User'}</h4>
+                      <p className="text-[10px] text-slate-500 truncate">{googleUser.email || 'user@shinenative.com'}</p>
                       <span className="inline-flex items-center text-[9px] font-bold text-emerald-600 mt-0.5">
                         <CheckCircle2 className="w-3 h-3 mr-0.5" /> Google Verified SSO
                       </span>
@@ -310,7 +316,7 @@ export const Header: React.FC<HeaderProps> = ({
                       }}
                       className="w-full text-left px-3 py-2 text-xs font-bold text-slate-700 hover:bg-blue-50 hover:text-blue-600 rounded-xl flex items-center justify-between cursor-pointer"
                     >
-                      <span>Open {googleUser.role.toUpperCase()} Dashboard</span>
+                      <span>Open {(googleUser.role || currentRole).toUpperCase()} Dashboard</span>
                       <BarChart3 className="w-3.5 h-3.5" />
                     </button>
 
@@ -321,8 +327,20 @@ export const Header: React.FC<HeaderProps> = ({
                       }}
                       className="w-full text-left px-3 py-2 text-xs font-bold text-slate-700 hover:bg-blue-50 hover:text-blue-600 rounded-xl flex items-center justify-between cursor-pointer"
                     >
-                      <span>Switch Google Account</span>
+                      <span>Switch Account</span>
                       <User className="w-3.5 h-3.5" />
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setShowUserDropdown(false);
+                        localStorage.clear();
+                        window.location.reload();
+                      }}
+                      className="w-full text-left px-3 py-2 text-xs font-bold text-slate-600 hover:bg-amber-50 hover:text-amber-700 rounded-xl flex items-center justify-between cursor-pointer"
+                    >
+                      <span>Clear App Cache & Cookies</span>
+                      <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                     </button>
 
                     {onSignOutGoogle && (
@@ -333,7 +351,7 @@ export const Header: React.FC<HeaderProps> = ({
                         }}
                         className="w-full text-left px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50 rounded-xl flex items-center justify-between cursor-pointer"
                       >
-                        <span>Sign Out of Google</span>
+                        <span>Sign Out</span>
                         <LogOut className="w-3.5 h-3.5" />
                       </button>
                     )}
