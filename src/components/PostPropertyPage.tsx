@@ -33,12 +33,18 @@ interface PostPropertyPageProps {
   files?: CloudinaryFile[];
   onListingCreated: (newProp: Property) => void;
   onNavigateBack: () => void;
+  isAdmin?: boolean;
+  currentUserEmail?: string;
+  currentGoogleUser?: any;
 }
 
 export const PostPropertyPage: React.FC<PostPropertyPageProps> = ({
   files = [],
   onListingCreated,
-  onNavigateBack
+  onNavigateBack,
+  isAdmin = false,
+  currentUserEmail,
+  currentGoogleUser
 }) => {
   const [submitting, setSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<'basic' | 'location' | 'specs' | 'amenities' | 'media' | 'preview'>('basic');
@@ -181,6 +187,9 @@ export const PostPropertyPage: React.FC<PostPropertyPageProps> = ({
       const defaultTitle = `${bedrooms} BHK ${subcategory.replace('_', ' ').toUpperCase()} in ${locality || city}`;
       const defaultDesc = description || `Spacious and beautifully designed ${bedrooms} BHK property located in ${locality || city}. Excellent connectivity to schools, hospitals, and major transit hubs.`;
 
+      const isUserAdmin = isAdmin;
+      const userEmailToUse = currentUserEmail || currentGoogleUser?.email || postedByEmail || 'client@shinenative.com';
+
       const newProp = await createPropertyListing({
         title: title || defaultTitle,
         description: defaultDesc,
@@ -214,12 +223,13 @@ export const PostPropertyPage: React.FC<PostPropertyPageProps> = ({
         city,
         state: stateName,
         pincode,
-        verified: true,
+        verified: isUserAdmin,
+        approvalStatus: isUserAdmin ? 'approved' : 'pending',
         featured: selectedPlan !== 'free',
         postedBy,
-        postedByName: postedByName || 'Shine Native Desk',
+        postedByName: currentGoogleUser?.displayName || postedByName || 'Shine Native Client',
         postedByPhone: postedByPhone || '+91 98000 00000',
-        postedByEmail: postedByEmail || 'contact@shinenative.com',
+        postedByEmail: userEmailToUse,
         reraNumber,
         builderName,
         amenities: selectedAmenities.length > 0 ? selectedAmenities : ['24x7 Security', 'Lift / Elevator'],
@@ -238,14 +248,18 @@ export const PostPropertyPage: React.FC<PostPropertyPageProps> = ({
         localityRating: 4.8,
         reviewsCount: 1,
         averageRating: 4.9,
-        tags: selectedPlan === 'platinum' ? ['Spotlight', 'Verified'] : ['Verified Listing'],
-        viewsCount: 12,
-        favoritesCount: 2,
+        tags: isUserAdmin ? ['Admin Direct', 'Verified Listing'] : ['Client Audit Check', 'Pending Verification'],
+        viewsCount: 1,
+        favoritesCount: 0,
         createdAt: new Date().toISOString()
       });
 
       onListingCreated(newProp);
-      alert('Success! Property listing published successfully.');
+      if (isUserAdmin) {
+        alert('Admin Success! Property listing directly published live to Shine Native.');
+      } else {
+        alert(`Property Submitted! An official review email notification has been dispatched to ${userEmailToUse}. Your listing is now placed in Client Audit Check for Admin verification.`);
+      }
       onNavigateBack();
     } catch (err: any) {
       console.error('Error creating property:', err);
@@ -1146,9 +1160,9 @@ export const PostPropertyPage: React.FC<PostPropertyPageProps> = ({
               <button
                 type="button"
                 onClick={() => setActiveTab('preview')}
-                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl flex items-center space-x-2"
+                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl flex items-center space-x-2 cursor-pointer"
               >
-                <span>Continue to Final Review & Publish</span>
+                <span>{isAdmin ? 'Continue to Final Confirmation (Admin)' : 'Continue to Final Review & Audit'}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -1282,12 +1296,12 @@ export const PostPropertyPage: React.FC<PostPropertyPageProps> = ({
                 {submitting ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>Publishing Property Listing...</span>
+                    <span>{isAdmin ? 'Publishing Property Listing...' : 'Submitting to Client Audit Check...'}</span>
                   </>
                 ) : (
                   <>
                     <Sparkles className="w-5 h-5" />
-                    <span>Publish Listing Now</span>
+                    <span>{isAdmin ? 'Publish Listing Directly (Admin)' : 'Submit Property for Client Audit Review'}</span>
                   </>
                 )}
               </button>

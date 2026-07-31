@@ -11,52 +11,7 @@ import {
 } from '../types';
 import { INITIAL_PROPERTIES } from '../data/mockData';
 
-export const INITIAL_CLIENTS: ClientUser[] = [
-  {
-    id: 'client-1',
-    name: 'Rahul Sharma',
-    email: 'rahul.sharma@example.com',
-    role: 'owner',
-    phone: '+91 98200 12345',
-    picture: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200&auto=format&fit=crop',
-    registeredAt: '2026-07-15T10:00:00.000Z',
-    status: 'active',
-    propertiesCount: 2
-  },
-  {
-    id: 'client-2',
-    name: 'Priya Patel',
-    email: 'priya.patel@example.com',
-    role: 'buyer',
-    phone: '+91 98765 43210',
-    picture: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=200&auto=format&fit=crop',
-    registeredAt: '2026-07-20T14:30:00.000Z',
-    status: 'active',
-    propertiesCount: 0
-  },
-  {
-    id: 'client-3',
-    name: 'Vikram Malhotra',
-    email: 'vikram.m@luxuryhomes.in',
-    role: 'builder',
-    phone: '+91 98111 22334',
-    picture: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=200&auto=format&fit=crop',
-    registeredAt: '2026-07-22T09:15:00.000Z',
-    status: 'active',
-    propertiesCount: 3
-  },
-  {
-    id: 'client-4',
-    name: 'Ananya Sen',
-    email: 'ananya.sen@brokerage.com',
-    role: 'broker',
-    phone: '+91 99000 88776',
-    picture: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=200&auto=format&fit=crop',
-    registeredAt: '2026-07-25T16:45:00.000Z',
-    status: 'active',
-    propertiesCount: 1
-  }
-];
+export const INITIAL_CLIENTS: ClientUser[] = [];
 
 
 // Initial Cloudinary Files

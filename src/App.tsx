@@ -27,8 +27,8 @@ import {
   ClientUser
 } from './types';
 import { fetchProperties, fetchBuilderProjects, submitLeadInquiry, fetchFiles, deleteFileApi, renameFileApi } from './services/api';
-import { POPULAR_CITIES, MOCK_BLOGS, LOCALITY_REVIEWS } from './data/mockData';
-import { INITIAL_PAGES, INITIAL_FILES, INITIAL_CLIENTS } from './services/store';
+import { POPULAR_CITIES, MOCK_BLOGS, LOCALITY_REVIEWS, INITIAL_PROPERTIES } from './data/mockData';
+import { INITIAL_PAGES, INITIAL_FILES, INITIAL_CLIENTS, INITIAL_AUDIT_PROPERTIES } from './services/store';
 
 import { onAuthChange, logoutFirebase } from './lib/firebase';
 
@@ -56,10 +56,58 @@ export default function App() {
   const [currentPath, setCurrentPath] = useState<string>(window.location.pathname || '/');
 
   // Properties & Projects State
-  const [properties, setProperties] = useState<Property[]>([]);
-  const [auditProperties, setAuditProperties] = useState<Property[]>([]);
+  const [properties, setProperties] = useState<Property[]>(() => {
+    const stored = localStorage.getItem('app_properties_list_v3');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.filter((p: Property) => 
+            !p.title.includes('Ultra Luxury 4 BHK Sky Residence') && 
+            !p.title.includes('Affordable 1 BHK Apartment in Smart City')
+          );
+        }
+      } catch (e) {
+        console.error('Error parsing stored properties:', e);
+      }
+    }
+    return INITIAL_PROPERTIES.filter(p => 
+      !p.title.includes('Ultra Luxury 4 BHK Sky Residence') && 
+      !p.title.includes('Affordable 1 BHK Apartment in Smart City')
+    );
+  });
+
+  useEffect(() => {
+    localStorage.setItem('app_properties_list_v3', JSON.stringify(properties));
+  }, [properties]);
+
+  const [auditProperties, setAuditProperties] = useState<Property[]>(() => {
+    const stored = localStorage.getItem('app_audit_properties_list_v3');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((p: Property) => 
+            !p.title.includes('Ultra Luxury 4 BHK Sky Residence') && 
+            !p.title.includes('Affordable 1 BHK Apartment in Smart City')
+          );
+        }
+      } catch (e) {
+        console.error('Error parsing stored audit properties:', e);
+      }
+    }
+    return INITIAL_AUDIT_PROPERTIES.filter(p => 
+      !p.title.includes('Ultra Luxury 4 BHK Sky Residence') && 
+      !p.title.includes('Affordable 1 BHK Apartment in Smart City')
+    );
+  });
+
+  useEffect(() => {
+    localStorage.setItem('app_audit_properties_list_v3', JSON.stringify(auditProperties));
+  }, [auditProperties]);
+
   const [projects, setProjects] = useState<BuilderProject[]>([]);
-  const [savedIds, setSavedIds] = useState<string[]>(['prop-1']);
+  const [savedIds, setSavedIds] = useState<string[]>([]);
   const [comparedIds, setComparedIds] = useState<string[]>([]);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
 
@@ -539,7 +587,15 @@ export default function App() {
         onOpenCompare={() => {
           if (comparedIds.length === 0) alert('Add properties to compare first using the scale icon on cards.');
         }}
-        onOpenPostProperty={() => navigate('/post-property')}
+        onOpenPostProperty={() => {
+          const isLoggedIn = Boolean(currentGoogleUser || (isAdminAuthenticated && currentRole === 'admin'));
+          if (!isLoggedIn) {
+            handleOpenGoogleAuth(currentRole, 'login');
+            alert('Please log in with Google to post a property listing on Shine Native.');
+          } else {
+            navigate('/post-property');
+          }
+        }}
         onOpenAISearch={() => setShowAISearch(true)}
         onOpenEMICalculator={() => setShowEMI(true)}
         onOpenDashboard={() => navigate(`/${currentRole === 'admin' ? 'admin' : currentRole}-dashboard`)}
@@ -559,11 +615,35 @@ export default function App() {
         {isPostPropertyRoute && (
           <PostPropertyPage
             files={files}
+            isAdmin={isAdminAuthenticated || currentRole === 'admin'}
+            currentUserEmail={currentGoogleUser?.email}
+            currentGoogleUser={currentGoogleUser}
             onListingCreated={(newProp) => {
-              setProperties([newProp, ...properties]);
-              setSelectedProperty(newProp);
+              const isUserAdmin = isAdminAuthenticated || currentRole === 'admin';
+              if (isUserAdmin) {
+                setProperties(prev => [newProp, ...prev]);
+                setSelectedProperty(newProp);
+                navigate('/admin-dashboard/properties');
+              } else {
+                setAuditProperties(prev => [newProp, ...prev]);
+                if (newProp.postedByEmail) {
+                  setClients(prev => prev.map(c => 
+                    c.email.toLowerCase() === newProp.postedByEmail?.toLowerCase()
+                      ? { ...c, propertiesCount: (c.propertiesCount || 0) + 1 }
+                      : c
+                  ));
+                }
+                navigate('/dashboard');
+              }
             }}
-            onNavigateBack={() => navigate('/admin-dashboard/properties')}
+            onNavigateBack={() => {
+              const isUserAdmin = isAdminAuthenticated || currentRole === 'admin';
+              if (isUserAdmin) {
+                navigate('/admin-dashboard/properties');
+              } else {
+                navigate('/dashboard');
+              }
+            }}
           />
         )}
 

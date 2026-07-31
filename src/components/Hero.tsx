@@ -13,6 +13,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { PropertyPurpose, PropertyCategory } from '../types';
+import { ALL_INDIAN_CITIES } from '../data/mockData';
 
 interface HeroProps {
   selectedCity: string;
@@ -28,7 +29,7 @@ interface HeroProps {
   onOpenPostProperty: () => void;
 }
 
-const CITIES = ['Mumbai', 'Bengaluru', 'Delhi NCR', 'Hyderabad', 'Pune', 'Goa'];
+const CITIES = ALL_INDIAN_CITIES;
 
 export const Hero: React.FC<HeroProps> = ({
   selectedCity,

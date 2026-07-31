@@ -17,6 +17,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { Role, GoogleAuthUser } from '../types';
+import { ALL_INDIAN_CITIES } from '../data/mockData';
 
 interface HeaderProps {
   currentRole: Role;
@@ -41,7 +42,7 @@ interface HeaderProps {
   onNavigateUrl?: (path: string) => void;
 }
 
-const CITIES = ['Mumbai', 'Bengaluru', 'Delhi NCR', 'Hyderabad', 'Pune', 'Goa'];
+const CITIES = ALL_INDIAN_CITIES;
 
 export const Header: React.FC<HeaderProps> = ({
   currentRole,
@@ -114,14 +115,14 @@ export const Header: React.FC<HeaderProps> = ({
                 <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
                   Switch Active Role
                 </div>
-                {(['buyer', 'owner', 'broker', 'builder', 'admin'] as Role[]).map((role) => (
+                {(['buyer', 'owner', 'broker', 'builder'] as Role[]).map((role) => (
                   <button
                     key={role}
                     onClick={() => {
                       onRoleChange(role);
                       setShowRoleDropdown(false);
                       if (onNavigateUrl) {
-                        onNavigateUrl(`/${role === 'admin' ? 'admin' : role}-dashboard`);
+                        onNavigateUrl(`/${role}-dashboard`);
                       }
                     }}
                     className={`w-full text-left px-3 py-2 text-xs font-medium flex items-center justify-between hover:bg-blue-50 hover:text-blue-700 cursor-pointer ${
