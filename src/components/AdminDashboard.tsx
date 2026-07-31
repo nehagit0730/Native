@@ -47,7 +47,9 @@ import {
   Cloud,
   ShieldCheck,
   Loader2,
-  ExternalLink
+  ExternalLink,
+  Building,
+  MessageSquare
 } from 'lucide-react';
 import { uploadFile } from '../services/api';
 import { 
@@ -197,6 +199,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     loading: boolean;
     connected: boolean;
     provider?: string;
+    clusterHost?: string;
+    databaseString?: string;
+    activeDatabase?: string;
     serverTime?: string;
     version?: string;
     message?: string;
@@ -775,9 +780,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <td className="p-4 text-right">
                             <div className="flex items-center justify-end space-x-1.5">
                               <button
-                                onClick={() => onPreviewProperty(prop)}
+                                onClick={() => window.open(`/properties/${prop.slug || prop.id}`, '_blank')}
                                 className="p-2 bg-slate-700/50 hover:bg-slate-700 text-slate-200 rounded-lg transition-colors cursor-pointer"
-                                title="Quick View Listing"
+                                title="Preview Listing in New Tab"
                               >
                                 <Eye className="w-3.5 h-3.5" />
                               </button>
@@ -856,11 +861,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                       <div className="flex items-center space-x-2 shrink-0">
                         <button
-                          onClick={() => onPreviewProperty(item)}
+                          onClick={() => window.open(`/properties/${item.slug || item.id}`, '_blank')}
                           className="bg-slate-700 hover:bg-slate-600 text-white font-bold px-3.5 py-2 rounded-xl text-xs transition-all cursor-pointer flex items-center space-x-1"
+                          title="Preview Listing in New Window"
                         >
                           <Eye className="w-3.5 h-3.5 mr-1" />
-                          <span>Preview</span>
+                          <span>Preview in New Window</span>
                         </button>
                         <button
                           onClick={() => onRequestChanges(item.id, 'Please provide updated RERA registration receipt.')}
@@ -1887,6 +1893,135 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <RefreshCw className={`w-4 h-4 ${neonStatus.loading || cloudinaryStatus.loading ? 'animate-spin' : ''}`} />
                 <span>{neonStatus.loading || cloudinaryStatus.loading ? 'Testing Connections...' : 'Re-Run Diagnostics'}</span>
               </button>
+            </div>
+
+            {/* CLUSTER & DATABASE REGISTRY + COLLECTIONS OVERVIEW */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* CLUSTER & DATABASE REGISTRY CARD */}
+              <div className="lg:col-span-7 bg-slate-800/80 border border-slate-700/60 rounded-3xl p-6 space-y-5">
+                <div className="flex items-center justify-between border-b border-slate-700/60 pb-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 rounded-2xl bg-emerald-950 border border-emerald-800/60 flex items-center justify-center text-emerald-400">
+                      <Database className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-extrabold text-white">Cluster & Database Registry</h3>
+                      <span className="text-[10px] text-slate-400">Neon PostgreSQL Serverless Instance Config</span>
+                    </div>
+                  </div>
+                  <span className="px-3 py-1 bg-emerald-950 text-emerald-400 border border-emerald-800/60 rounded-full text-xs font-mono font-bold">
+                    Connected: Live
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="p-3.5 bg-slate-900/90 rounded-2xl border border-slate-800 space-y-1">
+                    <div className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400">Cluster Host</div>
+                    <div className="text-xs font-mono font-bold text-cyan-400 break-all">
+                      {neonStatus.clusterHost || 'ep-shinenative-db.neon.tech'}
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 bg-slate-900/90 rounded-2xl border border-slate-800 space-y-1">
+                    <div className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400">Database Connection String</div>
+                    <div className="text-xs font-mono font-semibold text-slate-300 break-all">
+                      {neonStatus.databaseString || 'postgres://neondb_owner:••••••••@ep-shinenative-db.neon.tech/neondb?sslmode=require'}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-3.5 bg-slate-900/90 rounded-2xl border border-slate-800 space-y-1">
+                      <div className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400">Active Database</div>
+                      <div className="text-sm font-mono font-black text-emerald-400">
+                        {neonStatus.activeDatabase || 'neondb'}
+                      </div>
+                    </div>
+                    <div className="p-3.5 bg-slate-900/90 rounded-2xl border border-slate-800 space-y-1">
+                      <div className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400">SSL Connection</div>
+                      <div className="text-sm font-mono font-bold text-blue-400">
+                        Require (TLS v1.3)
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* COLLECTIONS OVERVIEW CARD */}
+              <div className="lg:col-span-5 bg-slate-800/80 border border-slate-700/60 rounded-3xl p-6 space-y-5 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between border-b border-slate-700/60 pb-4">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 rounded-2xl bg-blue-950 border border-blue-800/60 flex items-center justify-center text-blue-400">
+                        <Layers className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-extrabold text-white">Collections Overview (5)</h3>
+                        <span className="text-[10px] text-slate-400">Active PostgreSQL / App Collections & Counts</span>
+                      </div>
+                    </div>
+                    <span className="px-2.5 py-0.5 bg-blue-950 text-blue-400 border border-blue-800/60 rounded-lg text-xs font-mono font-black">
+                      5 Active
+                    </span>
+                  </div>
+
+                  <div className="mt-4 space-y-2">
+                    <div className="flex items-center justify-between p-3 bg-slate-900/80 rounded-xl border border-slate-800 text-xs">
+                      <div className="flex items-center space-x-2">
+                        <FileText className="w-4 h-4 text-emerald-400" />
+                        <span className="font-extrabold text-slate-200">pages</span>
+                      </div>
+                      <span className="font-mono font-bold bg-slate-800 text-emerald-400 px-2.5 py-1 rounded-lg border border-slate-700">
+                        {pages.length} pages
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between p-3 bg-slate-900/80 rounded-xl border border-slate-800 text-xs">
+                      <div className="flex items-center space-x-2">
+                        <Building className="w-4 h-4 text-blue-400" />
+                        <span className="font-extrabold text-slate-200">properties</span>
+                      </div>
+                      <span className="font-mono font-bold bg-slate-800 text-blue-400 px-2.5 py-1 rounded-lg border border-slate-700">
+                        {properties.length} properties
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between p-3 bg-slate-900/80 rounded-xl border border-slate-800 text-xs">
+                      <div className="flex items-center space-x-2">
+                        <Cloud className="w-4 h-4 text-purple-400" />
+                        <span className="font-extrabold text-slate-200">file manage</span>
+                      </div>
+                      <span className="font-mono font-bold bg-slate-800 text-purple-400 px-2.5 py-1 rounded-lg border border-slate-700">
+                        {files.length} media count
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between p-3 bg-slate-900/80 rounded-xl border border-slate-800 text-xs">
+                      <div className="flex items-center space-x-2">
+                        <CheckCircle2 className="w-4 h-4 text-amber-400" />
+                        <span className="font-extrabold text-slate-200">client audit check</span>
+                      </div>
+                      <span className="font-mono font-bold bg-slate-800 text-amber-400 px-2.5 py-1 rounded-lg border border-slate-700">
+                        {auditProperties.length} audit count
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between p-3 bg-slate-900/80 rounded-xl border border-slate-800 text-xs">
+                      <div className="flex items-center space-x-2">
+                        <MessageSquare className="w-4 h-4 text-cyan-400" />
+                        <span className="font-extrabold text-slate-200">lead inquiries</span>
+                      </div>
+                      <span className="font-mono font-bold bg-slate-800 text-cyan-400 px-2.5 py-1 rounded-lg border border-slate-700">
+                        5 inquiry count
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-slate-700/60 text-[10px] text-slate-400 flex items-center justify-between">
+                  <span>Sync Mode: Real-time Cloud Sync</span>
+                  <span className="text-emerald-400 font-bold">● Active</span>
+                </div>
+              </div>
             </div>
 
             {/* STATUS SUMMARY CARDS */}

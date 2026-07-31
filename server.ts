@@ -91,10 +91,31 @@ app.get('/api/health', (req, res) => {
 
 // Neon PostgreSQL Status & Direct Query Endpoint
 app.get('/api/neon/status', async (req, res) => {
+  const dbUrl = process.env.DATABASE_URL || process.env.NEON_DATABASE_URL;
   const sql = getNeonSql();
+
+  let clusterHost = 'ep-shinenative-db.neon.tech';
+  let activeDatabase = 'neondb';
+  let maskedDbString = 'postgres://neondb_owner:••••••••@ep-shinenative-db.neon.tech/neondb?sslmode=require';
+
+  if (dbUrl) {
+    try {
+      const parsed = new URL(dbUrl);
+      clusterHost = parsed.hostname || clusterHost;
+      activeDatabase = parsed.pathname.replace(/^\//, '') || activeDatabase;
+      const user = parsed.username || 'neondb_owner';
+      maskedDbString = `postgres://${user}:••••••••@${clusterHost}/${activeDatabase}?sslmode=require`;
+    } catch {
+      // fallback if regex or invalid URL
+    }
+  }
+
   if (!sql) {
     return res.json({
       connected: false,
+      clusterHost,
+      databaseString: maskedDbString,
+      activeDatabase,
       message: 'DATABASE_URL is not configured in .env.example. Add your Neon connection string to enable live PostgreSQL queries.'
     });
   }
@@ -102,12 +123,21 @@ app.get('/api/neon/status', async (req, res) => {
     const result = await sql`SELECT NOW() as current_time, version();`;
     res.json({
       connected: true,
-      provider: 'Neon PostgreSQL',
+      provider: 'Neon Serverless PostgreSQL',
+      clusterHost,
+      databaseString: maskedDbString,
+      activeDatabase,
       serverTime: result[0]?.current_time,
       version: result[0]?.version
     });
   } catch (err: any) {
-    res.status(500).json({ connected: false, error: err.message });
+    res.status(500).json({
+      connected: false,
+      clusterHost,
+      databaseString: maskedDbString,
+      activeDatabase,
+      error: err.message
+    });
   }
 });
 

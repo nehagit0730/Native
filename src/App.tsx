@@ -11,7 +11,8 @@ import {
   ArrowRight,
   Calculator,
   MessageSquare,
-  Home
+  Home,
+  Building
 } from 'lucide-react';
 import { 
   Property, 
