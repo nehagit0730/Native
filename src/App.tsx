@@ -537,7 +537,7 @@ export default function App() {
               onDuplicateProperty={handleDuplicateProperty}
               onSaveProperty={handleSaveProperty}
               onOpenAddProperty={() => navigate('/post-property')}
-              onPreviewProperty={(p) => setSelectedProperty(p)}
+              onPreviewProperty={(p) => navigate(`/properties/${p.slug || p.id}`)}
               onUploadFile={handleUploadFile}
               onDeleteFile={handleDeleteFile}
               onRenameFile={handleRenameFile}
@@ -567,7 +567,7 @@ export default function App() {
             googleUser={currentGoogleUser}
             onOpenGoogleAuth={handleOpenGoogleAuth}
             onSignOutGoogle={handleSignOutGoogle}
-            onSelectProperty={(p) => setSelectedProperty(p)}
+            onSelectProperty={(p) => navigate(`/properties/${p.slug || p.id}`)}
             onOpenPostProperty={() => navigate('/post-property')}
             onUpdateProperties={setProperties}
           />
@@ -582,31 +582,44 @@ export default function App() {
             comparedIds={comparedIds}
             onToggleSave={handleToggleSave}
             onToggleCompare={handleToggleCompare}
-            onSelectProperty={(p) => setSelectedProperty(p)}
+            onSelectProperty={(p) => navigate(`/properties/${p.slug || p.id}`)}
             onContactClick={handleContactClick}
             onNavigatePage={(url) => navigate(url)}
           />
         )}
 
-        {/* ROUTE 4: PROPERTY DETAIL URL (/properties/:slug) */}
-        {isPropertyRoute && currentPropertyFromUrl && (
-          <div className="max-w-7xl mx-auto px-4 py-8">
-            <button
-              onClick={() => navigate('/search')}
-              className="mb-4 text-xs font-bold text-blue-600 hover:underline flex items-center"
-            >
-              ← Back to Search
-            </button>
-            <PropertyCard
+        {/* ROUTE 4: DEDICATED PROPERTY DETAIL PAGE (/properties/:slug) */}
+        {isPropertyRoute && (
+          currentPropertyFromUrl ? (
+            <PropertyDetail
               property={currentPropertyFromUrl}
+              isOpen={true}
+              isFullPage={true}
+              onClose={() => navigate('/search')}
               isSaved={savedIds.includes(currentPropertyFromUrl.id)}
               isCompared={comparedIds.includes(currentPropertyFromUrl.id)}
               onToggleSave={handleToggleSave}
               onToggleCompare={handleToggleCompare}
-              onSelectProperty={(p) => setSelectedProperty(p)}
-              onContactClick={handleContactClick}
+              onOpenEMICalculator={() => setShowEMI(true)}
+              onSubmitInquiry={submitLeadInquiry}
+              allProperties={properties}
+              onSelectProperty={(p) => navigate(`/properties/${p.slug || p.id}`)}
             />
-          </div>
+          ) : (
+            <div className="py-24 max-w-lg mx-auto text-center space-y-4 px-4 bg-white rounded-3xl my-8 border border-slate-200 shadow-sm">
+              <Building className="w-16 h-16 text-slate-400 mx-auto" />
+              <h2 className="text-2xl font-extrabold text-slate-900">Property Listing Not Found</h2>
+              <p className="text-xs text-slate-500">
+                The property with slug <code className="font-bold text-slate-700">{propertySlug}</code> might have been removed or updated.
+              </p>
+              <button
+                onClick={() => navigate('/search')}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs px-6 py-3 rounded-xl shadow-md cursor-pointer inline-flex items-center space-x-2"
+              >
+                <span>Explore All Properties</span>
+              </button>
+            </div>
+          )
         )}
 
         {/* ROUTE 5: SEARCH LISTINGS (/search) */}
@@ -619,7 +632,7 @@ export default function App() {
             comparedIds={comparedIds}
             onToggleSave={handleToggleSave}
             onToggleCompare={handleToggleCompare}
-            onSelectProperty={(p) => setSelectedProperty(p)}
+            onSelectProperty={(p) => navigate(`/properties/${p.slug || p.id}`)}
             onContactClick={handleContactClick}
           />
         )}
@@ -678,7 +691,7 @@ export default function App() {
                     isCompared={comparedIds.includes(prop.id)}
                     onToggleSave={handleToggleSave}
                     onToggleCompare={handleToggleCompare}
-                    onSelectProperty={(p) => setSelectedProperty(p)}
+                    onSelectProperty={(p) => navigate(`/properties/${p.slug || p.id}`)}
                     onContactClick={handleContactClick}
                   />
                 ))}
@@ -837,7 +850,10 @@ export default function App() {
         comparedIds={comparedIds}
         onToggleSave={handleToggleSave}
         onToggleCompare={handleToggleCompare}
-        onSelectProperty={(p) => setSelectedProperty(p)}
+        onSelectProperty={(p) => {
+          setShowAISearch(false);
+          navigate(`/properties/${p.slug || p.id}`);
+        }}
         onContactClick={handleContactClick}
       />
 
@@ -856,7 +872,7 @@ export default function App() {
         comparedProperties={comparedPropertyList}
         onRemoveCompare={handleToggleCompare}
         onClearCompare={() => setComparedIds([])}
-        onSelectProperty={(p) => setSelectedProperty(p)}
+        onSelectProperty={(p) => navigate(`/properties/${p.slug || p.id}`)}
       />
 
       {/* Global Footer */}
