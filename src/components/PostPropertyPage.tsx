@@ -28,9 +28,11 @@ import {
 import { Property, PropertyCategory, PropertyPurpose, PropertySubcategory, PropertyStatus, PostedBy, CloudinaryFile } from '../types';
 import { ALL_AMENITIES, POPULAR_CITIES } from '../data/mockData';
 import { createPropertyListing, uploadFile } from '../services/api';
+import { FileManagerModalPicker } from './FileManagerModalPicker';
 
 interface PostPropertyPageProps {
   files?: CloudinaryFile[];
+  onUploadFile?: (file: CloudinaryFile) => void;
   onListingCreated: (newProp: Property) => void;
   onNavigateBack: () => void;
   isAdmin?: boolean;
@@ -40,6 +42,7 @@ interface PostPropertyPageProps {
 
 export const PostPropertyPage: React.FC<PostPropertyPageProps> = ({
   files = [],
+  onUploadFile,
   onListingCreated,
   onNavigateBack,
   isAdmin = false,
@@ -47,6 +50,7 @@ export const PostPropertyPage: React.FC<PostPropertyPageProps> = ({
   currentGoogleUser
 }) => {
   const [submitting, setSubmitting] = useState(false);
+  const [showPickerModal, setShowPickerModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'basic' | 'location' | 'specs' | 'amenities' | 'media' | 'preview'>('basic');
 
   // Basic Information
@@ -991,37 +995,34 @@ export const PostPropertyPage: React.FC<PostPropertyPageProps> = ({
                 </label>
               </div>
 
-              {/* Box 2: Cloudinary File Manager Quick Select */}
-              <div className="bg-slate-900/90 border border-slate-700 rounded-2xl p-6 space-y-3">
-                <div className="flex items-center space-x-2 text-cyan-400 font-bold text-xs">
-                  <Sparkles className="w-4 h-4" />
-                  <span>Pick Photos from Cloudinary File Manager</span>
+              {/* Box 2: File Manager Library Select */}
+              <div className="bg-slate-900/90 border border-slate-700 rounded-2xl p-6 space-y-4 flex flex-col justify-between">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2 text-cyan-400 font-bold text-xs">
+                      <Sparkles className="w-4 h-4" />
+                      <span>{isAdmin ? 'Admin File Manager Library' : 'My File Manager Library'}</span>
+                    </div>
+                    <span className="bg-cyan-950 text-cyan-300 border border-cyan-800 text-[10px] font-bold px-2.5 py-0.5 rounded-full">
+                      {files.length} Saved Files
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    Avoid uploading duplicates! Select existing high-res property assets directly from your personal File Manager library:
+                  </p>
                 </div>
-                <p className="text-[11px] text-slate-400">
-                  Select existing high-res property assets from your system's Cloudinary storage repository:
-                </p>
 
-                {files.length > 0 ? (
-                  <select
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        setImages(prev => [...prev, e.target.value]);
-                        e.target.value = '';
-                      }
-                    }}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-xs text-cyan-300 font-bold"
-                  >
-                    <option value="">-- Click to Add Image from Cloudinary --</option>
-                    {files.filter(f => f.fileType === 'image' || f.fileType === 'floor_plan').map(f => (
-                      <option key={f.id} value={f.url}>+ Add {f.name} ({f.folder})</option>
-                    ))}
-                  </select>
-                ) : (
-                  <p className="text-xs text-amber-400">No stored Cloudinary files found.</p>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setShowPickerModal(true)}
+                  className="w-full py-3 px-4 bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-black text-xs rounded-xl transition-all shadow-lg shadow-cyan-600/20 flex items-center justify-center space-x-2 cursor-pointer"
+                >
+                  <ImageIcon className="w-4 h-4" />
+                  <span>Choose from File Manager Library</span>
+                </button>
 
                 {/* Direct URL input */}
-                <div className="pt-2">
+                <div className="pt-2 border-t border-slate-800">
                   <label className="text-[11px] font-bold text-slate-300 block mb-1">Or Paste Direct Image Web URL</label>
                   <div className="flex items-center space-x-2">
                     <input
@@ -1034,7 +1035,7 @@ export const PostPropertyPage: React.FC<PostPropertyPageProps> = ({
                     <button
                       type="button"
                       onClick={handleAddDirectUrl}
-                      className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs rounded-xl shrink-0"
+                      className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs rounded-xl shrink-0 cursor-pointer"
                     >
                       Add URL
                     </button>
@@ -1307,6 +1308,22 @@ export const PostPropertyPage: React.FC<PostPropertyPageProps> = ({
               </button>
             </div>
           </div>
+        )}
+
+        {/* FILE MANAGER PICKER MODAL */}
+        {showPickerModal && (
+          <FileManagerModalPicker
+            isOpen={showPickerModal}
+            onClose={() => setShowPickerModal(false)}
+            files={files}
+            onUploadFile={onUploadFile}
+            onSelectFiles={(selectedUrls) => {
+              setImages(prev => [...prev, ...selectedUrls]);
+              setShowPickerModal(false);
+            }}
+            multiSelect={true}
+            title={isAdmin ? "Admin Storage File Manager Library" : "My Personal File Manager Library"}
+          />
         )}
 
       </div>

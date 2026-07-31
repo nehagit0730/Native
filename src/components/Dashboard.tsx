@@ -15,6 +15,9 @@ interface DashboardProps {
   onRoleChange?: (role: Role) => void;
   properties: Property[];
   savedProperties: Property[];
+  clientFiles?: CloudinaryFile[];
+  onUploadClientFile?: (file: CloudinaryFile) => void;
+  onDeleteClientFile?: (id: string) => void;
   googleUser?: GoogleAuthUser | null;
   onOpenGoogleAuth?: (role?: Role | 'admin', mode?: 'login' | 'signup') => void;
   onSignOutGoogle?: () => void;
@@ -28,6 +31,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onRoleChange = () => {},
   properties,
   savedProperties,
+  clientFiles = [],
+  onUploadClientFile,
+  onDeleteClientFile,
   googleUser,
   onOpenGoogleAuth,
   onSignOutGoogle,
@@ -184,6 +190,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
       onRoleChange={onRoleChange}
       properties={properties}
       savedProperties={savedProperties}
+      clientFiles={clientFiles}
+      onUploadClientFile={onUploadClientFile}
+      onDeleteClientFile={onDeleteClientFile}
       googleUser={googleUser}
       onOpenGoogleAuth={onOpenGoogleAuth}
       onSignOutGoogle={onSignOutGoogle}

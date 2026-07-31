@@ -114,6 +114,23 @@ export default function App() {
   // Store Collections
   const [pages, setPages] = useState<WebsitePage[]>(INITIAL_PAGES);
   const [files, setFiles] = useState<CloudinaryFile[]>(INITIAL_FILES);
+  const [clientFiles, setClientFiles] = useState<CloudinaryFile[]>(() => {
+    const stored = localStorage.getItem('app_client_files_vault');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {
+        console.error('Error parsing stored client files:', e);
+      }
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('app_client_files_vault', JSON.stringify(clientFiles));
+  }, [clientFiles]);
+
   const [clients, setClients] = useState<ClientUser[]>(() => {
     const stored = localStorage.getItem('app_clients_registry');
     if (stored) {
@@ -472,6 +489,14 @@ export default function App() {
     setFiles(prev => [file, ...prev]);
   };
 
+  const handleUploadClientFile = (file: CloudinaryFile) => {
+    setClientFiles(prev => [file, ...prev]);
+  };
+
+  const handleDeleteClientFile = (id: string) => {
+    setClientFiles(prev => prev.filter(f => f.id !== id));
+  };
+
   const handleDeleteFile = async (id: string) => {
     setFiles(prev => prev.filter(f => f.id !== id));
     await deleteFileApi(id);
@@ -566,55 +591,58 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
-      {/* Global Header */}
-      <Header
-        currentRole={currentRole}
-        onRoleChange={(role) => {
-          setCurrentRole(role);
-          navigate(`/${role === 'admin' ? 'admin' : role}-dashboard`);
-        }}
-        selectedCity={selectedCity}
-        onCitySelect={(city) => {
-          setSelectedCity(city);
-          setFilters({ ...filters, city });
-        }}
-        savedCount={savedIds.length}
-        compareCount={comparedIds.length}
-        googleUser={currentGoogleUser}
-        onOpenGoogleAuth={handleOpenGoogleAuth}
-        onSignOutGoogle={handleSignOutGoogle}
-        onOpenWishlist={() => navigate('/buyer-dashboard')}
-        onOpenCompare={() => {
-          if (comparedIds.length === 0) alert('Add properties to compare first using the scale icon on cards.');
-        }}
-        onOpenPostProperty={() => {
-          const isLoggedIn = Boolean(currentGoogleUser || (isAdminAuthenticated && currentRole === 'admin'));
-          if (!isLoggedIn) {
-            handleOpenGoogleAuth(currentRole, 'login');
-            alert('Please log in with Google to post a property listing on Shine Native.');
-          } else {
-            navigate('/post-property');
-          }
-        }}
-        onOpenAISearch={() => setShowAISearch(true)}
-        onOpenEMICalculator={() => setShowEMI(true)}
-        onOpenDashboard={() => navigate(`/${currentRole === 'admin' ? 'admin' : currentRole}-dashboard`)}
-        onOpenMessages={() => setShowMessages(true)}
-        onNavigateHome={() => navigate('/')}
-        onNavigateSearch={(p) => {
-          if (p) setFilters({ ...filters, purpose: p });
-          navigate('/search');
-        }}
-        onNavigateProjects={() => navigate('/projects')}
-        onNavigateUrl={(url) => navigate(url)}
-      />
+      {/* Global Header (Hidden on Admin Dashboard) */}
+      {!isAdminRoute && (
+        <Header
+          currentRole={currentRole}
+          onRoleChange={(role) => {
+            setCurrentRole(role);
+            navigate(`/${role === 'admin' ? 'admin' : role}-dashboard`);
+          }}
+          selectedCity={selectedCity}
+          onCitySelect={(city) => {
+            setSelectedCity(city);
+            setFilters({ ...filters, city });
+          }}
+          savedCount={savedIds.length}
+          compareCount={comparedIds.length}
+          googleUser={currentGoogleUser}
+          onOpenGoogleAuth={handleOpenGoogleAuth}
+          onSignOutGoogle={handleSignOutGoogle}
+          onOpenWishlist={() => navigate('/buyer-dashboard')}
+          onOpenCompare={() => {
+            if (comparedIds.length === 0) alert('Add properties to compare first using the scale icon on cards.');
+          }}
+          onOpenPostProperty={() => {
+            const isLoggedIn = Boolean(currentGoogleUser || (isAdminAuthenticated && currentRole === 'admin'));
+            if (!isLoggedIn) {
+              handleOpenGoogleAuth(currentRole, 'login');
+              alert('Please log in with Google to post a property listing on Shine Native.');
+            } else {
+              navigate('/post-property');
+            }
+          }}
+          onOpenAISearch={() => setShowAISearch(true)}
+          onOpenEMICalculator={() => setShowEMI(true)}
+          onOpenDashboard={() => navigate(`/${currentRole === 'admin' ? 'admin' : currentRole}-dashboard`)}
+          onOpenMessages={() => setShowMessages(true)}
+          onNavigateHome={() => navigate('/')}
+          onNavigateSearch={(p) => {
+            if (p) setFilters({ ...filters, purpose: p });
+            navigate('/search');
+          }}
+          onNavigateProjects={() => navigate('/projects')}
+          onNavigateUrl={(url) => navigate(url)}
+        />
+      )}
 
       {/* Main Content Router */}
       <main className="flex-1">
         {/* ROUTE 0: DEDICATED POST PROPERTY PAGE (/post-property) */}
         {isPostPropertyRoute && (
           <PostPropertyPage
-            files={files}
+            files={(isAdminAuthenticated || currentRole === 'admin') ? files : clientFiles}
+            onUploadFile={(isAdminAuthenticated || currentRole === 'admin') ? handleUploadFile : handleUploadClientFile}
             isAdmin={isAdminAuthenticated || currentRole === 'admin'}
             currentUserEmail={currentGoogleUser?.email}
             currentGoogleUser={currentGoogleUser}
@@ -713,6 +741,9 @@ export default function App() {
             }}
             properties={properties}
             savedProperties={savedPropertyList}
+            clientFiles={clientFiles}
+            onUploadClientFile={handleUploadClientFile}
+            onDeleteClientFile={handleDeleteClientFile}
             googleUser={currentGoogleUser}
             onOpenGoogleAuth={handleOpenGoogleAuth}
             onSignOutGoogle={handleSignOutGoogle}
@@ -1024,19 +1055,21 @@ export default function App() {
         onSelectProperty={(p) => navigate(`/properties/${p.slug || p.id}`)}
       />
 
-      {/* Global Footer */}
-      <Footer
-        onSelectCity={(city) => {
-          setSelectedCity(city);
-          setFilters({ ...filters, city });
-          navigate('/search');
-        }}
-        onNavigateCategory={(cat) => {
-          setFilters({ ...filters, category: cat as any });
-          navigate('/search');
-        }}
-        onOpenEMICalculator={() => setShowEMI(true)}
-      />
+      {/* Global Footer (Hidden on Admin Dashboard) */}
+      {!isAdminRoute && (
+        <Footer
+          onSelectCity={(city) => {
+            setSelectedCity(city);
+            setFilters({ ...filters, city });
+            navigate('/search');
+          }}
+          onNavigateCategory={(cat) => {
+            setFilters({ ...filters, category: cat as any });
+            navigate('/search');
+          }}
+          onOpenEMICalculator={() => setShowEMI(true)}
+        />
+      )}
     </div>
   );
 }

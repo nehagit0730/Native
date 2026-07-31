@@ -26,16 +26,22 @@ import {
   ShieldCheck,
   Award,
   CreditCard,
-  Plus
+  Plus,
+  Loader2,
+  Upload
 } from 'lucide-react';
-import { Property, Role, Lead, TeamMember, PropertyAlert, ChatMessage, GoogleAuthUser } from '../types';
+import { Property, Role, Lead, TeamMember, PropertyAlert, ChatMessage, GoogleAuthUser, CloudinaryFile } from '../types';
 import { INITIAL_TEAM_MEMBERS, INITIAL_ALERTS } from '../services/store';
+import { uploadFile } from '../services/api';
 
 interface ClientDashboardProps {
   currentRole: Role;
   onRoleChange: (role: Role) => void;
   properties: Property[];
   savedProperties: Property[];
+  clientFiles?: CloudinaryFile[];
+  onUploadClientFile?: (file: CloudinaryFile) => void;
+  onDeleteClientFile?: (id: string) => void;
   googleUser?: GoogleAuthUser | null;
   onOpenGoogleAuth?: (role?: Role | 'admin', mode?: 'login' | 'signup') => void;
   onSignOutGoogle?: () => void;
@@ -49,6 +55,9 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
   onRoleChange,
   properties,
   savedProperties,
+  clientFiles = [],
+  onUploadClientFile,
+  onDeleteClientFile,
   googleUser,
   onOpenGoogleAuth,
   onSignOutGoogle,
@@ -59,6 +68,39 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
 
   // Navigation tabs for client role
   const [activeTab, setActiveTab] = useState<string>('overview');
+
+  // Client File Manager states
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [fileSearchTerm, setFileSearchTerm] = useState('');
+  const [fileTypeFilter, setFileTypeFilter] = useState<string>('all');
+
+  const handleCopyClientUrl = (url: string, id: string) => {
+    navigator.clipboard.writeText(url);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleUploadClientDeviceFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const uploadedFiles = e.target.files;
+    if (!uploadedFiles || uploadedFiles.length === 0) return;
+    const file = uploadedFiles[0];
+    setUploadingFile(true);
+
+    try {
+      const uploaded = await uploadFile(file, '/client-files');
+      if (onUploadClientFile) {
+        onUploadClientFile(uploaded);
+      }
+      alert('File successfully saved to your personal Client File Manager library!');
+    } catch (err: any) {
+      console.error('Client file upload error:', err);
+      alert('Failed to upload file: ' + (err.message || 'Error'));
+    } finally {
+      setUploadingFile(false);
+      e.target.value = '';
+    }
+  };
 
   // Role selection mode toggle if user wants to switch initial mode
   const [showRoleSelector, setShowRoleSelector] = useState(false);
@@ -282,7 +324,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
           <div className="space-y-6">
             {/* Owner Tab Navigation */}
             <div className="flex items-center space-x-2 border-b border-slate-200 pb-2 overflow-x-auto">
-              {['overview', 'my_properties', 'pending_approval', 'inquiries', 'drafts', 'subscription'].map((t) => (
+              {['overview', 'my_properties', 'pending_approval', 'inquiries', 'file_manager', 'subscription'].map((t) => (
                 <button
                   key={t}
                   onClick={() => setActiveTab(t)}
@@ -342,7 +384,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
         {currentRole === 'builder' && (
           <div className="space-y-6">
             <div className="flex items-center space-x-2 border-b border-slate-200 pb-2 overflow-x-auto">
-              {['overview', 'team', 'projects', 'leads', 'analytics'].map((t) => (
+              {['overview', 'team', 'projects', 'leads', 'file_manager', 'analytics'].map((t) => (
                 <button
                   key={t}
                   onClick={() => setActiveTab(t)}
@@ -350,7 +392,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                     activeTab === t ? 'bg-slate-900 text-white shadow-md' : 'text-slate-600 hover:bg-slate-200/60'
                   }`}
                 >
-                  {t}
+                  {t.replace('_', ' ')}
                 </button>
               ))}
             </div>
@@ -400,7 +442,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
         {currentRole === 'broker' && (
           <div className="space-y-6">
             <div className="flex items-center space-x-2 border-b border-slate-200 pb-2 overflow-x-auto">
-              {['overview', 'leads', 'clients', 'analytics'].map((t) => (
+              {['overview', 'leads', 'clients', 'file_manager', 'analytics'].map((t) => (
                 <button
                   key={t}
                   onClick={() => setActiveTab(t)}
@@ -408,7 +450,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                     activeTab === t ? 'bg-slate-900 text-white shadow-md' : 'text-slate-600 hover:bg-slate-200/60'
                   }`}
                 >
-                  {t}
+                  {t.replace('_', ' ')}
                 </button>
               ))}
             </div>
@@ -424,7 +466,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
         {currentRole === 'buyer' && (
           <div className="space-y-6">
             <div className="flex items-center space-x-2 border-b border-slate-200 pb-2 overflow-x-auto">
-              {['wishlist', 'alerts', 'inquiries', 'recent'].map((t) => (
+              {['wishlist', 'alerts', 'inquiries', 'file_manager', 'recent'].map((t) => (
                 <button
                   key={t}
                   onClick={() => setActiveTab(t)}
@@ -487,6 +529,160 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+            {/* COMMON CLIENT FILE MANAGER VIEW */}
+            {activeTab === 'file_manager' && (
+              <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-md space-y-6">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-5">
+                  <div className="space-y-1">
+                    <div className="flex items-center space-x-2">
+                      <span className="bg-blue-100 text-blue-800 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border border-blue-200">
+                        CLIENT FILE STORAGE
+                      </span>
+                      <span className="text-slate-400 text-xs font-medium">• Isolated Workspace</span>
+                    </div>
+                    <h2 className="text-xl font-extrabold text-slate-900">Client Personal File Manager</h2>
+                    <p className="text-xs text-slate-500">
+                      Upload and manage your property images, brochures, floor plans and PDF documents. Files saved here are kept in your personal workspace and will not clutter the Admin Dashboard.
+                    </p>
+                  </div>
+
+                  <label className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold px-5 py-3 rounded-2xl shadow-md transition-all cursor-pointer flex items-center justify-center space-x-2 shrink-0">
+                    {uploadingFile ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4 stroke-[2.5]" />}
+                    <span>{uploadingFile ? 'Uploading File...' : 'Upload File to My Library'}</span>
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      disabled={uploadingFile}
+                      onChange={handleUploadClientDeviceFile}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                {/* File Stats Summary */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-1">
+                    <span className="text-xs font-bold text-slate-500">Saved Items</span>
+                    <div className="text-2xl font-extrabold text-slate-900">{clientFiles.length}</div>
+                  </div>
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-1">
+                    <span className="text-xs font-bold text-slate-500">Property Photos</span>
+                    <div className="text-2xl font-extrabold text-blue-600">
+                      {clientFiles.filter(f => f.fileType === 'image' || f.fileType === 'floor_plan').length}
+                    </div>
+                  </div>
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-1">
+                    <span className="text-xs font-bold text-slate-500">Brochures & PDFs</span>
+                    <div className="text-2xl font-extrabold text-emerald-600">
+                      {clientFiles.filter(f => f.fileType === 'pdf' || f.fileType === 'document').length}
+                    </div>
+                  </div>
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-1">
+                    <span className="text-xs font-bold text-slate-500">Storage Vault</span>
+                    <div className="text-sm font-extrabold text-slate-700">Client Vault</div>
+                  </div>
+                </div>
+
+                {/* Search & Filter Bar */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                  <div className="relative w-full sm:w-72">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                    <input
+                      type="text"
+                      placeholder="Search my files..."
+                      value={fileSearchTerm}
+                      onChange={(e) => setFileSearchTerm(e.target.value)}
+                      className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="flex items-center space-x-1 overflow-x-auto w-full sm:w-auto">
+                    {['all', 'image', 'floor_plan', 'pdf'].map((t) => (
+                      <button
+                        key={t}
+                        onClick={() => setFileTypeFilter(t)}
+                        className={`px-3 py-1 rounded-xl text-xs font-bold capitalize transition-all cursor-pointer ${
+                          fileTypeFilter === t ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 hover:bg-slate-200/60 border border-slate-200'
+                        }`}
+                      >
+                        {t.replace('_', ' ')}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* File Grid */}
+                {clientFiles.length === 0 ? (
+                  <div className="py-12 text-center space-y-3 bg-slate-50 rounded-2xl border border-dashed border-slate-300">
+                    <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto">
+                      <FileText className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-sm font-extrabold text-slate-800">Your Client File Manager is Empty</h3>
+                    <p className="text-xs text-slate-500 max-w-md mx-auto">
+                      Upload your property photos, floor plan layouts, or RERA documents. They will be saved here so you can attach them directly when posting property listings!
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    {clientFiles
+                      .filter(f => {
+                        if (fileTypeFilter !== 'all' && f.fileType !== fileTypeFilter) return false;
+                        if (fileSearchTerm.trim()) {
+                          return f.name.toLowerCase().includes(fileSearchTerm.toLowerCase()) || f.url.toLowerCase().includes(fileSearchTerm.toLowerCase());
+                        }
+                        return true;
+                      })
+                      .map((file) => {
+                        const isImg = file.fileType === 'image' || file.fileType === 'floor_plan' || file.url.match(/\.(jpeg|jpg|gif|png|webp|svg)$/i);
+
+                        return (
+                          <div key={file.id} className="bg-slate-50 border border-slate-200 rounded-2xl p-3 space-y-2 flex flex-col justify-between hover:shadow-md transition-all">
+                            <div className="w-full h-32 bg-white rounded-xl overflow-hidden flex items-center justify-center border border-slate-100 relative">
+                              {isImg ? (
+                                <img src={file.url} alt={file.name} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="text-center p-2">
+                                  <FileText className="w-10 h-10 text-red-500 mx-auto" />
+                                  <span className="text-[10px] font-bold text-slate-500 uppercase">{file.fileType}</span>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="space-y-1">
+                              <h4 className="text-xs font-bold text-slate-900 truncate" title={file.name}>
+                                {file.name}
+                              </h4>
+                              <p className="text-[10px] text-slate-400">{file.folder || '/client-files'}</p>
+                            </div>
+
+                            <div className="flex items-center space-x-2 pt-1 border-t border-slate-200/80">
+                              <button
+                                onClick={() => handleCopyClientUrl(file.url, file.id)}
+                                className="flex-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[10px] py-1.5 rounded-lg transition-all cursor-pointer text-center"
+                              >
+                                {copiedId === file.id ? 'Copied!' : 'Copy Link'}
+                              </button>
+                              {onDeleteClientFile && (
+                                <button
+                                  onClick={() => {
+                                    if (confirm(`Delete file "${file.name}" from your Client File Manager?`)) {
+                                      onDeleteClientFile(file.id);
+                                    }
+                                  }}
+                                  className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg border border-red-100 transition-all cursor-pointer"
+                                  title="Delete file"
+                                >
+                                  <XCircle className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
               </div>
             )}
           </div>
