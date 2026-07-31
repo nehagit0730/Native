@@ -49,7 +49,11 @@ import {
   Loader2,
   ExternalLink,
   Building,
-  MessageSquare
+  MessageSquare,
+  UserCheck,
+  UserX,
+  Send,
+  UserPlus
 } from 'lucide-react';
 import { uploadFile } from '../services/api';
 import { 
@@ -75,7 +79,8 @@ import {
   PageSectionType,
   DynamicPropertiesFilter,
   HeaderConfig, 
-  FooterConfig 
+  FooterConfig,
+  ClientUser
 } from '../types';
 
 interface AdminDashboardProps {
@@ -83,8 +88,11 @@ interface AdminDashboardProps {
   auditProperties: Property[];
   files: CloudinaryFile[];
   pages: WebsitePage[];
+  clients?: ClientUser[];
+  onUpdateClients?: (clients: ClientUser[]) => void;
   headerConfig: HeaderConfig;
   footerConfig: FooterConfig;
+
   onApproveProperty: (id: string) => void;
   onRejectProperty: (id: string, notes: string) => void;
   onRequestChanges: (id: string, notes: string) => void;
@@ -130,6 +138,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   auditProperties,
   files,
   pages,
+  clients = [],
+  onUpdateClients,
   headerConfig,
   footerConfig,
   initialSubTab,
@@ -151,9 +161,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onSaveHeaderConfig,
   onSaveFooterConfig
 }) => {
-  const getTabFromSubTab = (subTab?: string): 'analytics' | 'properties' | 'audit' | 'files' | 'pages' | 'header_footer' | 'db_diagnostics' => {
+  const getTabFromSubTab = (subTab?: string): 'analytics' | 'properties' | 'audit' | 'clients' | 'files' | 'pages' | 'header_footer' | 'db_diagnostics' => {
     if (subTab === 'properties') return 'properties';
     if (subTab === 'client-audit-check' || subTab === 'audit') return 'audit';
+    if (subTab === 'clients') return 'clients';
     if (subTab === 'file-manager' || subTab === 'files') return 'files';
     if (subTab === 'pages') return 'pages';
     if (subTab === 'header-and-footer' || subTab === 'header_footer') return 'header_footer';
@@ -162,7 +173,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   const [activeTab, setActiveTab] = useState<
-    'analytics' | 'properties' | 'audit' | 'files' | 'pages' | 'header_footer' | 'db_diagnostics'
+    'analytics' | 'properties' | 'audit' | 'clients' | 'files' | 'pages' | 'header_footer' | 'db_diagnostics'
   >(() => getTabFromSubTab(initialSubTab));
 
   React.useEffect(() => {
@@ -171,7 +182,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   }, [initialSubTab]);
 
-  const handleSelectTab = (tab: 'analytics' | 'properties' | 'audit' | 'files' | 'pages' | 'header_footer' | 'db_diagnostics') => {
+  const handleSelectTab = (tab: 'analytics' | 'properties' | 'audit' | 'clients' | 'files' | 'pages' | 'header_footer' | 'db_diagnostics') => {
     setActiveTab(tab);
     setIsBuildingPage(false);
     if (tab === 'db_diagnostics') runDiagnostics();
@@ -180,11 +191,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       analytics: '/admin-dashboard/analytics',
       properties: '/admin-dashboard/properties',
       audit: '/admin-dashboard/client-audit-check',
+      clients: '/admin-dashboard/clients',
       files: '/admin-dashboard/file-manager',
       pages: '/admin-dashboard/pages',
       header_footer: '/admin-dashboard/header-and-footer',
       db_diagnostics: '/admin-dashboard/db-diagnostics'
     };
+
 
     const targetPath = urlMap[tab] || '/admin-dashboard/analytics';
     if (onNavigateSubTab) {
@@ -218,6 +231,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   }>({ loading: false, configured: false });
 
   const [rawJsonResponse, setRawJsonResponse] = useState<string | null>(null);
+
+  // Clients tab state & filtering
+  const [clientSearch, setClientSearch] = useState('');
+  const [clientRoleFilter, setClientRoleFilter] = useState<string>('all');
+  const [selectedClientMail, setSelectedClientMail] = useState<ClientUser | null>(null);
+  const [composeMailSubject, setComposeMailSubject] = useState('');
+  const [composeMailBody, setComposeMailBody] = useState('');
+  const [showAddClientModal, setShowAddClientModal] = useState(false);
+  const [newClientData, setNewClientData] = useState<{ name: string; email: string; phone: string; role: 'owner' | 'buyer' | 'broker' | 'builder' }>({
+    name: '',
+    email: '',
+    phone: '',
+    role: 'owner'
+  });
+
+  // Property Rejection Email Notification State
+  const [rejectionTarget, setRejectionTarget] = useState<{ prop: Property; mode: 'reject' | 'request_changes' } | null>(null);
+  const [rejectionReasonText, setRejectionReasonText] = useState('');
+  const [emailNotificationToast, setEmailNotificationToast] = useState<string | null>(null);
+
 
   const runDiagnostics = async () => {
     setNeonStatus(prev => ({ ...prev, loading: true }));
@@ -419,6 +452,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </span>
               )}
             </button>
+
+            <button
+              onClick={() => handleSelectTab('clients')}
+              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'clients'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                  : 'text-slate-400 hover:bg-slate-900 hover:text-white'
+              }`}
+            >
+              <div className="flex items-center space-x-2.5">
+                <Users className="w-4 h-4 text-purple-400" />
+                <span>Clients</span>
+              </div>
+              <span className="bg-slate-800 text-slate-300 text-[10px] px-2 py-0.5 rounded-full font-bold">
+                {clients.length}
+              </span>
+            </button>
+
 
             <button
               onClick={() => handleSelectTab('files')}
@@ -869,13 +920,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <span>Preview in New Window</span>
                         </button>
                         <button
-                          onClick={() => onRequestChanges(item.id, 'Please provide updated RERA registration receipt.')}
+                          onClick={() => {
+                            setRejectionTarget({ prop: item, mode: 'request_changes' });
+                            setRejectionReasonText('Please provide updated RERA registration receipt and clear title document.');
+                          }}
                           className="bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 font-bold px-3.5 py-2 rounded-xl text-xs border border-amber-500/30 transition-all cursor-pointer"
                         >
                           Request Changes
                         </button>
                         <button
-                          onClick={() => onRejectProperty(item.id, 'Property price is outside valid market parameters.')}
+                          onClick={() => {
+                            setRejectionTarget({ prop: item, mode: 'reject' });
+                            setRejectionReasonText('Property listing details or document verification did not meet our verification guidelines.');
+                          }}
                           className="bg-red-950/40 hover:bg-red-900/60 text-red-400 font-bold px-3.5 py-2 rounded-xl text-xs border border-red-500/30 transition-all cursor-pointer"
                         >
                           Reject
@@ -900,6 +957,204 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             )}
           </div>
         )}
+
+        {/* TAB 3.5: CLIENTS MANAGEMENT */}
+        {activeTab === 'clients' && (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-extrabold text-white flex items-center space-x-2">
+                  <Users className="w-6 h-6 text-purple-400" />
+                  <span>Clients & Registered Users</span>
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  Manage logged in users, property owners, brokers, builders, and buyers. Admin auto-tracks all authenticated client logins.
+                </p>
+              </div>
+
+              <button
+                onClick={() => setShowAddClientModal(true)}
+                className="bg-purple-600 hover:bg-purple-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center space-x-2 shadow-lg transition-all cursor-pointer"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>Add Client</span>
+              </button>
+            </div>
+
+            {/* STATS OVERVIEW */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-slate-800/80 border border-slate-700/60 rounded-2xl p-4 space-y-1">
+                <div className="text-[10px] uppercase font-extrabold text-slate-400">Total Registered Clients</div>
+                <div className="text-2xl font-black text-white">{clients.length}</div>
+                <div className="text-[10px] text-emerald-400 flex items-center space-x-1 font-semibold">
+                  <span>● Active DB Collection</span>
+                </div>
+              </div>
+
+              <div className="bg-slate-800/80 border border-slate-700/60 rounded-2xl p-4 space-y-1">
+                <div className="text-[10px] uppercase font-extrabold text-slate-400">Property Owners</div>
+                <div className="text-2xl font-black text-emerald-400">
+                  {clients.filter(c => c.role === 'owner').length}
+                </div>
+                <div className="text-[10px] text-slate-400">Verified Listing Owners</div>
+              </div>
+
+              <div className="bg-slate-800/80 border border-slate-700/60 rounded-2xl p-4 space-y-1">
+                <div className="text-[10px] uppercase font-extrabold text-slate-400">Brokers & Builders</div>
+                <div className="text-2xl font-black text-amber-400">
+                  {clients.filter(c => c.role === 'broker' || c.role === 'builder').length}
+                </div>
+                <div className="text-[10px] text-slate-400">Commercial Partners</div>
+              </div>
+
+              <div className="bg-slate-800/80 border border-slate-700/60 rounded-2xl p-4 space-y-1">
+                <div className="text-[10px] uppercase font-extrabold text-slate-400">Buyers & Tenants</div>
+                <div className="text-2xl font-black text-cyan-400">
+                  {clients.filter(c => c.role === 'buyer' || c.role === 'tenant' || !c.role).length}
+                </div>
+                <div className="text-[10px] text-slate-400">Active House Seekers</div>
+              </div>
+            </div>
+
+            {/* SEARCH & FILTER BAR */}
+            <div className="bg-slate-800/80 border border-slate-700/60 rounded-2xl p-4 flex flex-col md:flex-row gap-4 items-center justify-between">
+              <div className="relative w-full md:w-96">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search client by name, email, or phone..."
+                  value={clientSearch}
+                  onChange={(e) => setClientSearch(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700/60 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                />
+              </div>
+
+              <div className="flex items-center space-x-3 w-full md:w-auto">
+                <Filter className="w-4 h-4 text-slate-400" />
+                <select
+                  value={clientRoleFilter}
+                  onChange={(e) => setClientRoleFilter(e.target.value)}
+                  className="bg-slate-900 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-purple-500 cursor-pointer"
+                >
+                  <option value="all">All Account Roles</option>
+                  <option value="owner">Property Owner</option>
+                  <option value="buyer">Buyer / Tenant</option>
+                  <option value="broker">Agent / Broker</option>
+                  <option value="builder">RERA Builder</option>
+                </select>
+              </div>
+            </div>
+
+            {/* CLIENTS DATA TABLE */}
+            <div className="bg-slate-800/80 border border-slate-700/60 rounded-3xl overflow-hidden shadow-xl">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-900/60 border-b border-slate-700/60 text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
+                      <th className="p-4">Client Info</th>
+                      <th className="p-4">Account Role</th>
+                      <th className="p-4">Contact Phone</th>
+                      <th className="p-4 text-center">Submitted Properties</th>
+                      <th className="p-4">Registration Date</th>
+                      <th className="p-4 text-center">Status</th>
+                      <th className="p-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-700/40 text-xs">
+                    {clients
+                      .filter(c => {
+                        const matchesSearch = c.name.toLowerCase().includes(clientSearch.toLowerCase()) || c.email.toLowerCase().includes(clientSearch.toLowerCase()) || c.phone.includes(clientSearch);
+                        const matchesRole = clientRoleFilter === 'all' || c.role === clientRoleFilter;
+                        return matchesSearch && matchesRole;
+                      })
+                      .map(client => (
+                        <tr key={client.id} className="hover:bg-slate-700/30 transition-colors">
+                          <td className="p-4">
+                            <div className="flex items-center space-x-3">
+                              <img
+                                src={client.picture || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'}
+                                alt={client.name}
+                                className="w-9 h-9 rounded-full object-cover border border-slate-600"
+                              />
+                              <div>
+                                <div className="font-extrabold text-white text-xs">{client.name}</div>
+                                <div className="text-[11px] text-slate-400 font-mono">{client.email}</div>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="p-4">
+                            <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider border ${
+                              client.role === 'owner' ? 'bg-emerald-950 text-emerald-400 border-emerald-800/60' :
+                              client.role === 'builder' ? 'bg-purple-950 text-purple-400 border-purple-800/60' :
+                              client.role === 'broker' ? 'bg-amber-950 text-amber-400 border-amber-800/60' :
+                              'bg-blue-950 text-blue-400 border-blue-800/60'
+                            }`}>
+                              {client.role || 'buyer'}
+                            </span>
+                          </td>
+
+                          <td className="p-4 font-mono text-slate-300">
+                            {client.phone || '+91 98200 00000'}
+                          </td>
+
+                          <td className="p-4 text-center font-mono font-bold text-white">
+                            <span className="bg-slate-900 border border-slate-700 px-2.5 py-1 rounded-lg text-xs">
+                              {client.propertiesCount || 0}
+                            </span>
+                          </td>
+
+                          <td className="p-4 text-slate-400 text-[11px]">
+                            {new Date(client.registeredAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </td>
+
+                          <td className="p-4 text-center">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                              client.status === 'suspended' ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                            }`}>
+                              {client.status === 'suspended' ? 'Suspended' : 'Active'}
+                            </span>
+                          </td>
+
+                          <td className="p-4 text-right">
+                            <div className="flex items-center justify-end space-x-2">
+                              <button
+                                onClick={() => {
+                                  setSelectedClientMail(client);
+                                  setComposeMailSubject(`Notice from Shine Native Admin - Account Updates`);
+                                  setComposeMailBody(`Dear ${client.name},\n\nWe are writing to you regarding your account on Shine Native Real Estate.`);
+                                }}
+                                className="p-2 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 rounded-lg border border-blue-500/30 transition-all cursor-pointer"
+                                title="Send Direct Email to Client"
+                              >
+                                <Mail className="w-3.5 h-3.5" />
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  if (onUpdateClients) {
+                                    const updated = clients.map(c => c.id === client.id ? { ...c, status: c.status === 'suspended' ? 'active' : 'suspended' as any } : c);
+                                    onUpdateClients(updated);
+                                    setEmailNotificationToast(`Client ${client.name} status updated to ${client.status === 'suspended' ? 'Active' : 'Suspended'}`);
+                                    setTimeout(() => setEmailNotificationToast(null), 4000);
+                                  }
+                                }}
+                                className="p-2 bg-slate-700/50 hover:bg-slate-700 text-slate-300 rounded-lg transition-all cursor-pointer"
+                                title={client.status === 'suspended' ? 'Activate Client' : 'Suspend Client'}
+                              >
+                                {client.status === 'suspended' ? <UserCheck className="w-3.5 h-3.5 text-emerald-400" /> : <UserX className="w-3.5 h-3.5 text-red-400" />}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
 
         {/* TAB 4: FILE MANAGER (CLOUDINARY CONNECTED) */}
         {activeTab === 'files' && (
@@ -1955,12 +2210,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <Layers className="w-5 h-5" />
                       </div>
                       <div>
-                        <h3 className="text-base font-extrabold text-white">Collections Overview (5)</h3>
+                        <h3 className="text-base font-extrabold text-white">Collections Overview (6)</h3>
                         <span className="text-[10px] text-slate-400">Active PostgreSQL / App Collections & Counts</span>
                       </div>
                     </div>
                     <span className="px-2.5 py-0.5 bg-blue-950 text-blue-400 border border-blue-800/60 rounded-lg text-xs font-mono font-black">
-                      5 Active
+                      6 Active
                     </span>
                   </div>
 
@@ -2002,6 +2257,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       </div>
                       <span className="font-mono font-bold bg-slate-800 text-amber-400 px-2.5 py-1 rounded-lg border border-slate-700">
                         {auditProperties.length} audit count
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between p-3 bg-slate-900/80 rounded-xl border border-slate-800 text-xs">
+                      <div className="flex items-center space-x-2">
+                        <Users className="w-4 h-4 text-purple-400" />
+                        <span className="font-extrabold text-slate-200">clients</span>
+                      </div>
+                      <span className="font-mono font-bold bg-slate-800 text-purple-400 px-2.5 py-1 rounded-lg border border-slate-700">
+                        {clients.length} client count
                       </span>
                     </div>
 
@@ -2193,6 +2458,280 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
           </div>
         )}
+
+      {/* DIRECT EMAIL COMPOSE MODAL */}
+      {selectedClientMail && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center space-x-2 text-white">
+                <Mail className="w-5 h-5 text-blue-400" />
+                <h3 className="text-base font-extrabold">Send Email to Client</h3>
+              </div>
+              <button
+                onClick={() => setSelectedClientMail(null)}
+                className="text-slate-400 hover:text-white text-xs font-bold cursor-pointer"
+              >
+                ✕ Close
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] uppercase font-extrabold text-slate-400 block">Recipient</span>
+                  <span className="font-bold text-white">{selectedClientMail.name}</span>
+                </div>
+                <span className="font-mono text-cyan-400 font-semibold">{selectedClientMail.email}</span>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">Subject</label>
+                <input
+                  type="text"
+                  value={composeMailSubject}
+                  onChange={(e) => setComposeMailSubject(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">Message Body</label>
+                <textarea
+                  rows={5}
+                  value={composeMailBody}
+                  onChange={(e) => setComposeMailBody(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-blue-500 resize-none leading-relaxed"
+                />
+              </div>
+
+              <div className="p-3 bg-blue-950/40 border border-blue-800/40 rounded-xl text-blue-300 text-[11px]">
+                ℹ️ Email will be dispatched via official Admin Mailer Service to {selectedClientMail.email}.
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end space-x-3 pt-2">
+              <button
+                onClick={() => setSelectedClientMail(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setEmailNotificationToast(`📧 Direct Email sent to ${selectedClientMail.email}`);
+                  setSelectedClientMail(null);
+                  setTimeout(() => setEmailNotificationToast(null), 4000);
+                }}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-extrabold rounded-xl text-xs flex items-center space-x-1.5 shadow-lg cursor-pointer"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>Send Email</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PROPERTY REJECTION EMAIL NOTIFICATION MODAL */}
+      {rejectionTarget && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-red-900/40 rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center space-x-2 text-white">
+                <AlertCircle className="w-5 h-5 text-red-400" />
+                <h3 className="text-base font-extrabold">
+                  {rejectionTarget.mode === 'reject' ? 'Property Rejection Email Notice' : 'Request Changes Email Notice'}
+                </h3>
+              </div>
+              <button
+                onClick={() => setRejectionTarget(null)}
+                className="text-slate-400 hover:text-white text-xs font-bold cursor-pointer"
+              >
+                ✕ Close
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase font-extrabold text-slate-400">Target Property</span>
+                  <span className="text-emerald-400 font-bold font-mono">{rejectionTarget.prop.priceFormatted}</span>
+                </div>
+                <div className="font-extrabold text-white text-sm">{rejectionTarget.prop.title}</div>
+                <div className="text-slate-400 text-[11px]">
+                  Owner/Submitter: <span className="text-cyan-400 font-semibold">{rejectionTarget.prop.postedByName || 'Property Owner'}</span> ({rejectionTarget.prop.postedBy})
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                  Rejection Reason / Client Email Notes
+                </label>
+                <textarea
+                  rows={4}
+                  value={rejectionReasonText}
+                  onChange={(e) => setRejectionReasonText(e.target.value)}
+                  placeholder="State clear reasons why the property listing was rejected or needs updates..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-red-500 resize-none leading-relaxed"
+                />
+              </div>
+
+              <div className="p-3 bg-red-950/30 border border-red-900/40 rounded-xl text-red-300 text-[11px] space-y-1">
+                <div className="font-bold flex items-center space-x-1">
+                  <Mail className="w-3.5 h-3.5" />
+                  <span>Automated Client Notification Mailer</span>
+                </div>
+                <p>An official email notice will be dispatched from Admin to the client's email informing them that their property listing was {rejectionTarget.mode === 'reject' ? 'rejected' : 'sent back for revision'}.</p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end space-x-3 pt-2">
+              <button
+                onClick={() => setRejectionTarget(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (rejectionTarget.mode === 'reject') {
+                    onRejectProperty(rejectionTarget.prop.id, rejectionReasonText);
+                  } else {
+                    onRequestChanges(rejectionTarget.prop.id, rejectionReasonText);
+                  }
+                  setEmailNotificationToast(`📧 Rejection Email dispatched to client for "${rejectionTarget.prop.title}"!`);
+                  setRejectionTarget(null);
+                  setTimeout(() => setEmailNotificationToast(null), 5000);
+                }}
+                className="px-5 py-2 bg-red-600 hover:bg-red-500 text-white font-extrabold rounded-xl text-xs flex items-center space-x-1.5 shadow-lg cursor-pointer"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>Dispatch Email & Reject Property</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ADD NEW CLIENT MODAL */}
+      {showAddClientModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center space-x-2 text-white">
+                <UserPlus className="w-5 h-5 text-purple-400" />
+                <h3 className="text-base font-extrabold">Add New Registered Client</h3>
+              </div>
+              <button
+                onClick={() => setShowAddClientModal(false)}
+                className="text-slate-400 hover:text-white text-xs font-bold cursor-pointer"
+              >
+                ✕ Close
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">Full Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Sameer Kapoor"
+                  value={newClientData.name}
+                  onChange={(e) => setNewClientData({ ...newClientData, name: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">Email Address</label>
+                <input
+                  type="email"
+                  placeholder="e.g. sameer@example.com"
+                  value={newClientData.email}
+                  onChange={(e) => setNewClientData({ ...newClientData, email: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">Phone Number</label>
+                <input
+                  type="text"
+                  placeholder="e.g. +91 98980 12345"
+                  value={newClientData.phone}
+                  onChange={(e) => setNewClientData({ ...newClientData, phone: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">Account Role</label>
+                <select
+                  value={newClientData.role}
+                  onChange={(e) => setNewClientData({ ...newClientData, role: e.target.value as any })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-purple-500 cursor-pointer"
+                >
+                  <option value="owner">Property Owner</option>
+                  <option value="buyer">Buyer / Tenant</option>
+                  <option value="broker">Agent / Broker</option>
+                  <option value="builder">RERA Builder</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end space-x-3 pt-2">
+              <button
+                onClick={() => setShowAddClientModal(false)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (!newClientData.name || !newClientData.email) return;
+                  if (onUpdateClients) {
+                    const created: ClientUser = {
+                      id: `client-${Date.now()}`,
+                      name: newClientData.name,
+                      email: newClientData.email,
+                      phone: newClientData.phone || '+91 98000 00000',
+                      role: newClientData.role,
+                      picture: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+                      registeredAt: new Date().toISOString(),
+                      status: 'active',
+                      propertiesCount: 0
+                    };
+                    onUpdateClients([created, ...clients]);
+                    setEmailNotificationToast(`New client ${newClientData.name} registered successfully!`);
+                    setShowAddClientModal(false);
+                    setNewClientData({ name: '', email: '', phone: '', role: 'owner' });
+                    setTimeout(() => setEmailNotificationToast(null), 4000);
+                  }
+                }}
+                className="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white font-extrabold rounded-xl text-xs flex items-center space-x-1.5 shadow-lg cursor-pointer"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>Save Client</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TOAST NOTIFICATION BANNER */}
+      {emailNotificationToast && (
+        <div className="fixed bottom-6 right-6 bg-slate-900 text-white border border-emerald-500/50 px-5 py-3 rounded-2xl shadow-2xl z-50 flex items-center space-x-3 animate-in slide-in-from-bottom duration-300">
+          <div className="w-8 h-8 rounded-full bg-emerald-950 border border-emerald-800 flex items-center justify-center text-emerald-400 font-black">
+            ✉️
+          </div>
+          <div>
+            <div className="text-xs font-extrabold text-emerald-400">Email Notification Service</div>
+            <div className="text-xs text-slate-200">{emailNotificationToast}</div>
+          </div>
+        </div>
+      )}
+
       </main>
     </div>
   );

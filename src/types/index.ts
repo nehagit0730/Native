@@ -334,3 +334,16 @@ export interface GoogleAuthUser {
   authMethod: 'google';
 }
 
+export interface ClientUser {
+  id: string;
+  name: string;
+  email: string;
+  role: Role | 'buyer' | 'owner' | 'broker' | 'builder';
+  phone: string;
+  picture: string;
+  registeredAt: string;
+  status: 'active' | 'suspended';
+  propertiesCount: number;
+}
+
+

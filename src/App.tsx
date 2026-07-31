@@ -23,11 +23,13 @@ import {
   CloudinaryFile, 
   HeaderConfig, 
   FooterConfig,
-  GoogleAuthUser 
+  GoogleAuthUser,
+  ClientUser
 } from './types';
 import { fetchProperties, fetchBuilderProjects, submitLeadInquiry, fetchFiles, deleteFileApi, renameFileApi } from './services/api';
 import { POPULAR_CITIES, MOCK_BLOGS, LOCALITY_REVIEWS } from './data/mockData';
-import { INITIAL_PAGES, INITIAL_FILES } from './services/store';
+import { INITIAL_PAGES, INITIAL_FILES, INITIAL_CLIENTS } from './services/store';
+
 import { onAuthChange, logoutFirebase } from './lib/firebase';
 
 import { Header } from './components/Header';
@@ -64,6 +66,22 @@ export default function App() {
   // Store Collections
   const [pages, setPages] = useState<WebsitePage[]>(INITIAL_PAGES);
   const [files, setFiles] = useState<CloudinaryFile[]>(INITIAL_FILES);
+  const [clients, setClients] = useState<ClientUser[]>(() => {
+    const stored = localStorage.getItem('app_clients_registry');
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch (e) {
+        console.error('Error parsing stored clients:', e);
+      }
+    }
+    return INITIAL_CLIENTS;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('app_clients_registry', JSON.stringify(clients));
+  }, [clients]);
+
   const [headerConfig, setHeaderConfig] = useState<HeaderConfig>({
     logoText: 'Shine Native',
     tagline: 'Real Estate Marketplace',
@@ -128,6 +146,34 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('google_user_sessions', JSON.stringify(googleUserSessions));
   }, [googleUserSessions]);
+
+  // Auto-sync non-admin logged-in users to Clients collection
+  useEffect(() => {
+    (Object.entries(googleUserSessions) as [string, GoogleAuthUser | null][]).forEach(([roleKey, session]) => {
+      if (session && session.email && roleKey !== 'admin') {
+        setClients(prev => {
+          const exists = prev.some(c => c.email.toLowerCase() === session.email.toLowerCase());
+          if (!exists) {
+            const newClient: ClientUser = {
+              id: `client-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+              name: session.name || session.email.split('@')[0],
+              email: session.email,
+              phone: '+91 98200 12345',
+              role: (session.role || roleKey) as any,
+              picture: session.picture || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+              registeredAt: session.loggedInAt || new Date().toISOString(),
+              status: 'active',
+              propertiesCount: 0
+            };
+            return [newClient, ...prev];
+          }
+          return prev;
+        });
+      }
+    });
+  }, [googleUserSessions]);
+
+
 
   useEffect(() => {
     const unsubscribe = onAuthChange((fbUser) => {
@@ -353,7 +399,26 @@ export default function App() {
       if (exists) return prev.map(p => p.id === prop.id ? prop : p);
       return [prop, ...prev];
     });
+
+    // Client Audit Check integration: when client submits property, add to auditProperties
+    if (!prop.verified || prop.postedBy === 'owner' || prop.postedBy === 'builder' || prop.postedBy === 'broker') {
+      setAuditProperties(prev => {
+        const exists = prev.some(p => p.id === prop.id);
+        if (exists) return prev.map(p => p.id === prop.id ? prop : p);
+        return [prop, ...prev];
+      });
+    }
+
+    // Update property count for submitter in clients collection
+    if (prop.postedByEmail) {
+      setClients(prev => prev.map(c => 
+        c.email.toLowerCase() === prop.postedByEmail?.toLowerCase() 
+          ? { ...c, propertiesCount: (c.propertiesCount || 0) + 1 }
+          : c
+      ));
+    }
   };
+
 
   const handleUploadFile = (file: CloudinaryFile) => {
     setFiles(prev => [file, ...prev]);
@@ -527,8 +592,11 @@ export default function App() {
               auditProperties={auditProperties}
               files={files}
               pages={pages}
+              clients={clients}
+              onUpdateClients={setClients}
               headerConfig={headerConfig}
               footerConfig={footerConfig}
+
               initialSubTab={adminSubTab}
               onNavigateSubTab={(path) => navigate(path)}
               onApproveProperty={handleApproveProperty}
