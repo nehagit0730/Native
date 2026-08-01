@@ -128,6 +128,22 @@ export async function createPropertyListing(propertyData: Partial<Property>): Pr
   return newProp;
 }
 
+export async function deletePropertyApi(id: string): Promise<boolean> {
+  const json = await safeFetchJson<{ success?: boolean }>(`/api/properties/${id}`, {
+    method: 'DELETE'
+  });
+  return json?.success ?? true;
+}
+
+export async function updatePropertyApi(id: string, updates: Partial<Property>): Promise<boolean> {
+  const json = await safeFetchJson<{ success?: boolean }>(`/api/properties/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates)
+  });
+  return json?.success ?? true;
+}
+
 export async function fetchBuilderProjects(): Promise<BuilderProject[]> {
   const json = await safeFetchJson<{ data?: BuilderProject[] }>('/api/projects');
   if (json && json.data) return json.data;

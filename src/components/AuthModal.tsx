@@ -273,12 +273,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           {activeRole === 'admin' ? (
             /* ADMIN LOGIN FORM */
             <form onSubmit={handleAdminLogin} className="space-y-4">
-              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900 flex items-center space-x-2">
-                <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
-                <p>
-                  <span className="font-bold">Admin Credentials:</span> Username: <code className="font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded">admin</code> | Password: <code className="font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded">admin</code>
-                </p>
-              </div>
 
               {adminError && (
                 <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-2xl text-xs font-bold flex items-center space-x-2">

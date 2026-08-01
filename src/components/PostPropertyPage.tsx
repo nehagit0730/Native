@@ -231,7 +231,7 @@ export const PostPropertyPage: React.FC<PostPropertyPageProps> = ({
         approvalStatus: isUserAdmin ? 'approved' : 'pending',
         featured: selectedPlan !== 'free',
         postedBy,
-        postedByName: currentGoogleUser?.displayName || postedByName || 'Shine Native Client',
+        postedByName: currentGoogleUser?.displayName || postedByName || (isUserAdmin ? 'Shine Native Admin' : 'Shine Native Client'),
         postedByPhone: postedByPhone || '+91 98000 00000',
         postedByEmail: userEmailToUse,
         reraNumber,
@@ -252,7 +252,7 @@ export const PostPropertyPage: React.FC<PostPropertyPageProps> = ({
         localityRating: 4.8,
         reviewsCount: 1,
         averageRating: 4.9,
-        tags: isUserAdmin ? ['Admin Direct', 'Verified Listing'] : ['Client Audit Check', 'Pending Verification'],
+        tags: isUserAdmin ? ['Verified Listing', 'Live'] : ['Pending Verification', 'Client Submission'],
         viewsCount: 1,
         favoritesCount: 0,
         createdAt: new Date().toISOString()
@@ -260,9 +260,9 @@ export const PostPropertyPage: React.FC<PostPropertyPageProps> = ({
 
       onListingCreated(newProp);
       if (isUserAdmin) {
-        alert('Admin Success! Property listing directly published live to Shine Native.');
+        alert('Admin Listing Published! The property is now live in search results and active property lists.');
       } else {
-        alert(`Property Submitted! An official review email notification has been dispatched to ${userEmailToUse}. Your listing is now placed in Client Audit Check for Admin verification.`);
+        alert('Property Submitted! Your property has been sent to the Client Audit Checklist for Admin review before publication.');
       }
       onNavigateBack();
     } catch (err: any) {

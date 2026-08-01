@@ -605,6 +605,33 @@ app.post('/api/properties', (req, res) => {
   }
 });
 
+// 4b. Delete Property
+app.delete('/api/properties/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    propertiesStore = propertiesStore.filter(p => p.id !== id && p.slug !== id);
+    res.json({ success: true, message: 'Property deleted successfully' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 4c. Update Property
+app.put('/api/properties/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const index = propertiesStore.findIndex(p => p.id === id || p.slug === id);
+    if (index !== -1) {
+      propertiesStore[index] = { ...propertiesStore[index], ...req.body };
+      res.json({ success: true, data: propertiesStore[index] });
+    } else {
+      res.status(404).json({ success: false, message: 'Property not found' });
+    }
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // 5. Get Builder Projects
 app.get('/api/projects', (req, res) => {
   res.json({ success: true, count: projectsStore.length, data: projectsStore });

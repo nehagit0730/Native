@@ -26,7 +26,7 @@ import {
   GoogleAuthUser,
   ClientUser
 } from './types';
-import { fetchProperties, fetchBuilderProjects, submitLeadInquiry, fetchFiles, deleteFileApi, renameFileApi } from './services/api';
+import { fetchProperties, fetchBuilderProjects, submitLeadInquiry, fetchFiles, deleteFileApi, renameFileApi, deletePropertyApi, updatePropertyApi } from './services/api';
 import { POPULAR_CITIES, MOCK_BLOGS, LOCALITY_REVIEWS, INITIAL_PROPERTIES } from './data/mockData';
 import { INITIAL_PAGES, INITIAL_FILES, INITIAL_CLIENTS, INITIAL_AUDIT_PROPERTIES } from './services/store';
 
@@ -328,19 +328,31 @@ export default function App() {
   // Load properties from backend API
   useEffect(() => {
     loadData();
-  }, [filters, selectedCity]);
+  }, []);
 
   const loadData = async () => {
     try {
-      const propData = await fetchProperties({ ...filters, city: selectedCity });
+      const propData = await fetchProperties();
       const projData = await fetchBuilderProjects();
       const fileData = await fetchFiles();
-      setProperties(propData);
+      
+      const deletedIds: string[] = JSON.parse(localStorage.getItem('app_deleted_prop_ids') || '[]');
+
+      setProperties(prev => {
+        const map = new Map<string, Property>();
+        propData.forEach(p => {
+          if (!deletedIds.includes(p.id)) map.set(p.id, p);
+        });
+        prev.forEach(p => {
+          if (!deletedIds.includes(p.id)) map.set(p.id, p);
+        });
+        return Array.from(map.values());
+      });
+
+      setAuditProperties(prev => prev.filter(p => !deletedIds.includes(p.id)));
+
       setProjects(projData);
       setFiles(fileData);
-
-      // Separate unverified/pending properties for Audit
-      setAuditProperties(propData.filter(p => !p.verified || p.postedBy === 'owner'));
     } catch (err) {
       console.error('Error fetching data:', err);
     }
@@ -425,9 +437,22 @@ export default function App() {
   };
 
   // Admin CRUD Handlers
-  const handleApproveProperty = (id: string) => {
-    setProperties(prev => prev.map(p => p.id === id ? { ...p, verified: true } : p));
-    setAuditProperties(prev => prev.filter(p => p.id !== id));
+  const handleApproveProperty = async (id: string) => {
+    const auditItem = auditProperties.find(p => p.id === id);
+    if (auditItem) {
+      const approvedItem: Property = {
+        ...auditItem,
+        verified: true,
+        approvalStatus: 'approved',
+        tags: ['Verified Listing', 'Approved']
+      };
+      setProperties(prev => [approvedItem, ...prev.filter(p => p.id !== id)]);
+      setAuditProperties(prev => prev.filter(p => p.id !== id));
+      await updatePropertyApi(id, { verified: true, approvalStatus: 'approved' });
+    } else {
+      setProperties(prev => prev.map(p => p.id === id ? { ...p, verified: true, approvalStatus: 'approved' } : p));
+      await updatePropertyApi(id, { verified: true, approvalStatus: 'approved' });
+    }
   };
 
   const handleRejectProperty = (id: string, reason: string) => {
@@ -439,8 +464,21 @@ export default function App() {
     alert(`Requested changes sent to property owner: ${notes}`);
   };
 
-  const handleDeleteProperty = (id: string) => {
+  const handleDeleteProperty = async (id: string) => {
     setProperties(prev => prev.filter(p => p.id !== id));
+    setAuditProperties(prev => prev.filter(p => p.id !== id));
+
+    try {
+      const deletedIds: string[] = JSON.parse(localStorage.getItem('app_deleted_prop_ids') || '[]');
+      if (!deletedIds.includes(id)) {
+        deletedIds.push(id);
+        localStorage.setItem('app_deleted_prop_ids', JSON.stringify(deletedIds));
+      }
+    } catch (e) {
+      console.error('Error persisting deleted property ID:', e);
+    }
+
+    await deletePropertyApi(id);
   };
 
   const handleDuplicateProperty = (id: string) => {
@@ -649,11 +687,11 @@ export default function App() {
             onListingCreated={(newProp) => {
               const isUserAdmin = isAdminAuthenticated || currentRole === 'admin';
               if (isUserAdmin) {
-                setProperties(prev => [newProp, ...prev]);
+                setProperties(prev => [newProp, ...prev.filter(p => p.id !== newProp.id)]);
                 setSelectedProperty(newProp);
                 navigate('/admin-dashboard/properties');
               } else {
-                setAuditProperties(prev => [newProp, ...prev]);
+                setAuditProperties(prev => [newProp, ...prev.filter(p => p.id !== newProp.id)]);
                 if (newProp.postedByEmail) {
                   setClients(prev => prev.map(c => 
                     c.email.toLowerCase() === newProp.postedByEmail?.toLowerCase()
@@ -682,7 +720,7 @@ export default function App() {
               <ShieldCheck className="w-16 h-16 text-blue-600 mx-auto animate-bounce" />
               <h2 className="text-2xl font-extrabold text-slate-900">Admin Authentication Required</h2>
               <p className="text-xs text-slate-600">
-                Please log in with administrator credentials (Username: <code className="font-bold text-amber-700">admin</code>, Password: <code className="font-bold text-amber-700">admin</code>).
+                Please log in with administrator credentials to access the Admin Control Center.
               </p>
               <button
                 onClick={() => {

@@ -115,7 +115,12 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
 
   // Mock seller listings
   const myOwnerProperties = properties.filter(
-    (p) => p.postedBy === 'owner' || p.postedByName.includes('Owner') || p.postedByName.includes('Verified User')
+    (p) =>
+      (googleUser?.email && p.postedByEmail?.toLowerCase() === googleUser.email.toLowerCase()) ||
+      p.postedBy === currentRole ||
+      p.postedBy === 'owner' ||
+      p.postedByName.includes('Owner') ||
+      p.postedByName.includes('Verified User')
   );
 
   return (
