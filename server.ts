@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
 import { getNeonSql, getCloudinary } from './src/services/serverIntegrations.js';
@@ -13,8 +14,43 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// In-memory data store initialized with initial mock datasets
-let propertiesStore: Property[] = [...INITIAL_PROPERTIES];
+// Persistent Disk Storage for Properties
+const DATA_DIR = path.join(process.cwd(), 'data_store');
+const PROPERTIES_FILE = path.join(DATA_DIR, 'properties.json');
+
+function loadPropertiesFromDisk(): Property[] {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    if (fs.existsSync(PROPERTIES_FILE)) {
+      const data = fs.readFileSync(PROPERTIES_FILE, 'utf-8');
+      const parsed = JSON.parse(data);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        console.log(`[Server] Loaded ${parsed.length} properties from persistent disk storage.`);
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.error('[Server] Error reading properties from disk:', err);
+  }
+  return [...INITIAL_PROPERTIES];
+}
+
+function savePropertiesToDisk(props: Property[]) {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    fs.writeFileSync(PROPERTIES_FILE, JSON.stringify(props, null, 2), 'utf-8');
+    console.log(`[Server] Saved ${props.length} properties to persistent disk storage.`);
+  } catch (err) {
+    console.error('[Server] Error saving properties to disk:', err);
+  }
+}
+
+// In-memory data store initialized with persistent or initial mock datasets
+let propertiesStore: Property[] = loadPropertiesFromDisk();
 let projectsStore = [...BUILDER_PROJECTS];
 let filesStore: CloudinaryFile[] = [...INITIAL_FILES];
 let leadsStore: Lead[] = [
@@ -599,6 +635,7 @@ app.post('/api/properties', (req, res) => {
     };
 
     propertiesStore.unshift(newProperty);
+    savePropertiesToDisk(propertiesStore);
     res.status(201).json({ success: true, message: 'Property listed successfully!', data: newProperty });
   } catch (err: any) {
     res.status(400).json({ success: false, error: err.message });
@@ -610,6 +647,7 @@ app.delete('/api/properties/:id', (req, res) => {
   try {
     const { id } = req.params;
     propertiesStore = propertiesStore.filter(p => p.id !== id && p.slug !== id);
+    savePropertiesToDisk(propertiesStore);
     res.json({ success: true, message: 'Property deleted successfully' });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -623,6 +661,7 @@ app.put('/api/properties/:id', (req, res) => {
     const index = propertiesStore.findIndex(p => p.id === id || p.slug === id);
     if (index !== -1) {
       propertiesStore[index] = { ...propertiesStore[index], ...req.body };
+      savePropertiesToDisk(propertiesStore);
       res.json({ success: true, data: propertiesStore[index] });
     } else {
       res.status(404).json({ success: false, message: 'Property not found' });

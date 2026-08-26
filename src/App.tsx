@@ -77,8 +77,36 @@ export default function App() {
     );
   });
 
+  // Explicit check for app_properties_list_v3 in localStorage to ensure user-added properties are preserved
   useEffect(() => {
-    localStorage.setItem('app_properties_list_v3', JSON.stringify(properties));
+    const stored = localStorage.getItem('app_properties_list_v3');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const deletedIds: string[] = JSON.parse(localStorage.getItem('app_deleted_prop_ids') || '[]');
+          const validStored = parsed.filter((p: Property) => !deletedIds.includes(p.id));
+          if (validStored.length > 0) {
+            setProperties(prev => {
+              const map = new Map<string, Property>();
+              validStored.forEach((p: Property) => map.set(p.id, p));
+              prev.forEach(p => {
+                if (!deletedIds.includes(p.id)) map.set(p.id, p);
+              });
+              return Array.from(map.values());
+            });
+          }
+        }
+      } catch (e) {
+        console.error('Error verifying app_properties_list_v3 in localStorage:', e);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (properties.length > 0) {
+      localStorage.setItem('app_properties_list_v3', JSON.stringify(properties));
+    }
   }, [properties]);
 
   const [auditProperties, setAuditProperties] = useState<Property[]>(() => {
@@ -343,13 +371,20 @@ export default function App() {
         propData.forEach(p => {
           if (!deletedIds.includes(p.id)) map.set(p.id, p);
         });
+        return Array.from(map.values());
+      });
+
+      setAuditProperties(prev => {
+        const pendingFromStore = propData.filter(p => (!p.verified || p.approvalStatus === 'pending') && p.postedBy === 'owner');
+        const map = new Map<string, Property>();
+        pendingFromStore.forEach(p => {
+          if (!deletedIds.includes(p.id)) map.set(p.id, p);
+        });
         prev.forEach(p => {
           if (!deletedIds.includes(p.id)) map.set(p.id, p);
         });
         return Array.from(map.values());
       });
-
-      setAuditProperties(prev => prev.filter(p => !deletedIds.includes(p.id)));
 
       setProjects(projData);
       setFiles(fileData);

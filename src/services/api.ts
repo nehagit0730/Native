@@ -1,6 +1,12 @@
 import { Property, BuilderProject, CityInfo, SearchFilters, Lead, ChatMessage, LocalityReview, CloudinaryFile } from '../types';
 import { INITIAL_PROPERTIES, BUILDER_PROJECTS, POPULAR_CITIES, LOCALITY_REVIEWS } from '../data/mockData';
 import { INITIAL_FILES } from './store';
+import {
+  savePropertyToFirestore,
+  fetchPropertiesFromFirestore,
+  deletePropertyFromFirestore,
+  updatePropertyInFirestore
+} from '../lib/firebase';
 
 async function safeFetchJson<T>(url: string, options?: RequestInit): Promise<T | null> {
   try {
@@ -18,6 +24,62 @@ async function safeFetchJson<T>(url: string, options?: RequestInit): Promise<T |
   }
 }
 
+// LocalStorage helpers for zero-loss persistence
+function getLocalCreatedProperties(): Property[] {
+  try {
+    const raw = localStorage.getItem('app_user_created_properties');
+    const userCreated = raw ? JSON.parse(raw) : [];
+
+    const v3Raw = localStorage.getItem('app_properties_list_v3');
+    const v3List = v3Raw ? JSON.parse(v3Raw) : [];
+
+    const map = new Map<string, Property>();
+    if (Array.isArray(v3List)) {
+      v3List.forEach((p: Property) => map.set(p.id, p));
+    }
+    if (Array.isArray(userCreated)) {
+      userCreated.forEach((p: Property) => map.set(p.id, p));
+    }
+
+    return Array.from(map.values());
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalCreatedProperty(prop: Property) {
+  try {
+    const existing = getLocalCreatedProperties();
+    const updated = [prop, ...existing.filter(p => p.id !== prop.id)];
+    localStorage.setItem('app_user_created_properties', JSON.stringify(updated));
+    localStorage.setItem('app_properties_list_v3', JSON.stringify(updated));
+  } catch (err) {
+    console.error('Failed to save property to localStorage:', err);
+  }
+}
+
+function removeLocalCreatedProperty(id: string) {
+  try {
+    const existing = getLocalCreatedProperties();
+    const updated = existing.filter(p => p.id !== id);
+    localStorage.setItem('app_user_created_properties', JSON.stringify(updated));
+    localStorage.setItem('app_properties_list_v3', JSON.stringify(updated));
+  } catch (err) {
+    console.error('Failed to remove property from localStorage:', err);
+  }
+}
+
+function updateLocalCreatedProperty(id: string, updates: Partial<Property>) {
+  try {
+    const existing = getLocalCreatedProperties();
+    const updated = existing.map(p => p.id === id ? { ...p, ...updates } : p);
+    localStorage.setItem('app_user_created_properties', JSON.stringify(updated));
+    localStorage.setItem('app_properties_list_v3', JSON.stringify(updated));
+  } catch (err) {
+    console.error('Failed to update property in localStorage:', err);
+  }
+}
+
 export async function fetchProperties(filters?: Partial<SearchFilters> & { featuredOnly?: boolean }): Promise<Property[]> {
   const params = new URLSearchParams();
   if (filters) {
@@ -32,11 +94,46 @@ export async function fetchProperties(filters?: Partial<SearchFilters> & { featu
     });
   }
 
+  // 1. Fetch from Express backend
   const json = await safeFetchJson<{ data?: Property[] }>(`/api/properties?${params.toString()}`);
-  if (json && json.data) return json.data;
+  let serverProps: Property[] = json?.data || [];
 
-  // Fallback to local filter logic if server API route is unrouted (e.g., Vercel static host)
-  let result = [...INITIAL_PROPERTIES];
+  // 2. Fetch from Firestore database
+  let firestoreProps: Property[] = [];
+  try {
+    firestoreProps = await fetchPropertiesFromFirestore();
+  } catch (e) {
+    console.warn('[API] Could not load properties from Firestore:', e);
+  }
+
+  // 3. Load from LocalStorage
+  const localProps = getLocalCreatedProperties();
+
+  // Combine and deduplicate
+  const deletedIds: string[] = JSON.parse(localStorage.getItem('app_deleted_prop_ids') || '[]');
+  const propMap = new Map<string, Property>();
+
+  // Add initial mock properties if server gave empty list
+  if (serverProps.length === 0) {
+    INITIAL_PROPERTIES.forEach(p => {
+      if (!deletedIds.includes(p.id)) propMap.set(p.id, p);
+    });
+  } else {
+    serverProps.forEach(p => {
+      if (!deletedIds.includes(p.id)) propMap.set(p.id, p);
+    });
+  }
+
+  firestoreProps.forEach(p => {
+    if (!deletedIds.includes(p.id)) propMap.set(p.id, p);
+  });
+
+  localProps.forEach(p => {
+    if (!deletedIds.includes(p.id)) propMap.set(p.id, p);
+  });
+
+  let result = Array.from(propMap.values());
+
   if (filters) {
     if (filters.city && filters.city !== 'all') {
       result = result.filter(p => p.city.toLowerCase() === filters.city!.toLowerCase());
@@ -52,83 +149,118 @@ export async function fetchProperties(filters?: Partial<SearchFilters> & { featu
       result = result.filter(p => p.title.toLowerCase().includes(q) || p.locality.toLowerCase().includes(q));
     }
   }
+
   return result;
 }
 
 export async function fetchPropertyById(id: string): Promise<Property> {
   const json = await safeFetchJson<{ data?: Property }>(`/api/properties/${id}`);
   if (json && json.data) return json.data;
+  
+  const localProps = getLocalCreatedProperties();
+  const foundLocal = localProps.find(p => p.id === id || p.slug === id);
+  if (foundLocal) return foundLocal;
+
   const prop = INITIAL_PROPERTIES.find(p => p.id === id || p.slug === id);
   if (prop) return prop;
   throw new Error('Property not found');
 }
 
 export async function createPropertyListing(propertyData: Partial<Property>): Promise<Property> {
+  let createdProp: Property | null = null;
+
+  // Attempt server creation
   const json = await safeFetchJson<{ success?: boolean; data?: Property; error?: string }>('/api/properties', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(propertyData)
   });
-  if (json && json.data) return json.data;
 
-  // Fallback client creation
-  const newProp: Property = {
-    id: `prop-${Date.now()}`,
-    title: propertyData.title || 'New Property',
-    slug: (propertyData.title || 'property').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-    description: propertyData.description || '',
-    category: propertyData.category || 'residential',
-    subcategory: propertyData.subcategory || 'apartment',
-    purpose: propertyData.purpose || 'sale',
-    status: propertyData.status || 'ready_to_move',
-    price: Number(propertyData.price) || 5000000,
-    priceFormatted: `₹ ${Number(propertyData.price || 5000000).toLocaleString('en-IN')}`,
-    pricePerSqft: 5000,
-    negotiable: true,
-    areaSqft: Number(propertyData.areaSqft) || 1000,
-    bedrooms: Number(propertyData.bedrooms) || 2,
-    bathrooms: 2,
-    balconies: 1,
-    parking: 'covered',
-    facing: 'East',
-    floorNumber: 2,
-    totalFloors: 10,
-    constructionAgeYears: 1,
-    ownership: 'freehold',
-    availableFrom: 'Immediate',
-    latitude: 19.076,
-    longitude: 72.8777,
-    address: propertyData.address || 'Locality',
-    locality: propertyData.locality || 'Bandra',
-    city: propertyData.city || 'Mumbai',
-    state: 'Maharashtra',
-    pincode: '400001',
-    verified: true,
-    featured: false,
-    postedBy: 'owner',
-    postedByName: 'User',
-    postedByPhone: '+91 98000 00000',
-    postedByEmail: 'user@shinenative.com',
-    postedByAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop',
-    amenities: propertyData.amenities || ['Lift / Elevator', '24x7 Security'],
-    images: propertyData.images && propertyData.images.length > 0 ? propertyData.images : [
-      'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=1200&auto=format&fit=crop'
-    ],
-    floorPlans: propertyData.floorPlans || [],
-    nearbyPlaces: propertyData.nearbyPlaces || [],
-    crimeRating: 4.8,
-    localityRating: 4.7,
-    reviewsCount: 1,
-    averageRating: 4.8,
-    tags: ['New Listing'],
-    viewsCount: 1,
-    favoritesCount: 0,
-    createdAt: new Date().toISOString()
-  };
-  return newProp;
+  if (json && json.data) {
+    createdProp = json.data;
+  } else {
+    // Client fallback creation
+    createdProp = {
+      id: propertyData.id || `prop-${Date.now()}`,
+      title: propertyData.title || 'New Property',
+      slug: (propertyData.title || 'property').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+      description: propertyData.description || '',
+      category: propertyData.category || 'residential',
+      subcategory: propertyData.subcategory || 'apartment',
+      purpose: propertyData.purpose || 'sale',
+      status: propertyData.status || 'ready_to_move',
+      price: Number(propertyData.price) || 5000000,
+      priceFormatted: `₹ ${Number(propertyData.price || 5000000).toLocaleString('en-IN')}`,
+      pricePerSqft: 5000,
+      negotiable: true,
+      areaSqft: Number(propertyData.areaSqft) || 1000,
+      bedrooms: Number(propertyData.bedrooms) || 2,
+      bathrooms: 2,
+      balconies: 1,
+      parking: 'covered',
+      facing: 'East',
+      floorNumber: 2,
+      totalFloors: 10,
+      constructionAgeYears: 1,
+      ownership: 'freehold',
+      availableFrom: 'Immediate',
+      latitude: 19.076,
+      longitude: 72.8777,
+      address: propertyData.address || 'Locality',
+      locality: propertyData.locality || 'Bandra',
+      city: propertyData.city || 'Mumbai',
+      state: 'Maharashtra',
+      pincode: '400001',
+      verified: propertyData.verified ?? true,
+      approvalStatus: propertyData.approvalStatus || 'approved',
+      featured: false,
+      postedBy: propertyData.postedBy || 'owner',
+      postedByName: propertyData.postedByName || 'User',
+      postedByPhone: propertyData.postedByPhone || '+91 98000 00000',
+      postedByEmail: propertyData.postedByEmail || 'user@shinenative.com',
+      postedByAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop',
+      amenities: propertyData.amenities || ['Lift / Elevator', '24x7 Security'],
+      images: propertyData.images && propertyData.images.length > 0 ? propertyData.images : [
+        'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=1200&auto=format&fit=crop'
+      ],
+      floorPlans: propertyData.floorPlans || [],
+      nearbyPlaces: propertyData.nearbyPlaces || [],
+      crimeRating: 4.8,
+      localityRating: 4.7,
+      reviewsCount: 1,
+      averageRating: 4.8,
+      tags: propertyData.tags || ['New Listing'],
+      viewsCount: 1,
+      favoritesCount: 0,
+      createdAt: new Date().toISOString()
+    };
+  }
+
+  // Save to LocalStorage for offline/client resilience
+  saveLocalCreatedProperty(createdProp);
+
+  // Save to Firestore Database for Cloud persistence
+  try {
+    await savePropertyToFirestore(createdProp);
+  } catch (err) {
+    console.warn('[API] Error persisting property to Firestore:', err);
+  }
+
+  return createdProp;
 }
 
 export async function deletePropertyApi(id: string): Promise<boolean> {
+  // Remove from localStorage
+  removeLocalCreatedProperty(id);
+
+  // Remove from Firestore
+  try {
+    await deletePropertyFromFirestore(id);
+  } catch (err) {
+    console.warn('[API] Error removing property from Firestore:', err);
+  }
+
+  // Remove from Express backend
   const json = await safeFetchJson<{ success?: boolean }>(`/api/properties/${id}`, {
     method: 'DELETE'
   });
@@ -136,6 +268,17 @@ export async function deletePropertyApi(id: string): Promise<boolean> {
 }
 
 export async function updatePropertyApi(id: string, updates: Partial<Property>): Promise<boolean> {
+  // Update in localStorage
+  updateLocalCreatedProperty(id, updates);
+
+  // Update in Firestore
+  try {
+    await updatePropertyInFirestore(id, updates);
+  } catch (err) {
+    console.warn('[API] Error updating property in Firestore:', err);
+  }
+
+  // Update in Express backend
   const json = await safeFetchJson<{ success?: boolean }>(`/api/properties/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },

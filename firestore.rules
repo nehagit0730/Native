@@ -1,0 +1,40 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // System connection check path
+    match /system/{systemDocId} {
+      allow read, write: if true;
+    }
+
+    // Properties collection: public read for all visitors, open write for authenticated or guest listing creations
+    match /properties/{propertyId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    // Clients collection
+    match /clients/{clientId} {
+      allow read, write: if true;
+    }
+
+    // Leads collection
+    match /leads/{leadId} {
+      allow read, write: if true;
+    }
+
+    // Messages collection
+    match /messages/{messageId} {
+      allow read, write: if true;
+    }
+
+    // Files collection
+    match /files/{fileId} {
+      allow read, write: if true;
+    }
+  }
+}

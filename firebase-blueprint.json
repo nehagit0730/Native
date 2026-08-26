@@ -1,0 +1,39 @@
+{
+  "entities": {
+    "Property": {
+      "title": "Property",
+      "description": "Real estate property listing document",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "city": { "type": "string" }
+      }
+    },
+    "Client": {
+      "title": "Client",
+      "description": "User profile or client record",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/properties/{propertyId}": {
+      "schema": { "$ref": "#/entities/Property" },
+      "description": "Public property marketplace listings"
+    },
+    "/clients/{clientId}": {
+      "schema": { "$ref": "#/entities/Client" },
+      "description": "Client accounts and workspace records"
+    },
+    "/system/{systemDocId}": {
+      "schema": { "type": "object" },
+      "description": "System readiness and health check documents"
+    }
+  }
+}
